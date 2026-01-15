@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { supabase } from '../services/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import HeaderSimple from '../components/HeaderSimple';
 import { useApp } from '../context/AppContext';
@@ -11,78 +12,99 @@ const ResultsPage: React.FC = () => {
 
     const totalCost = project.items.reduce((acc, item) => acc + item.cost, 0);
     const costWithFactorQ = project.factorQ ? totalCost * 1.05 : totalCost;
-    
+
     // Formula: Price = Cost + (Cost * Margin%)
     const profitAmount = costWithFactorQ * (project.profitMargin / 100);
     const salePrice = costWithFactorQ + profitAmount;
 
-    const handleSaveAndFinish = () => {
+    const [isSaving, setIsSaving] = useState(false);
+    const { user } = useApp(); // Need user for RLS
+
+    const handleSaveAndFinish = async () => {
         if (!project.name) {
             alert("Por favor asigna un nombre a tu proyecto antes de guardar.");
             return;
         }
+        if (!user) {
+            alert("Debes iniciar sesión para guardar.");
+            return;
+        }
 
-        // 1. Guardar el Proyecto Principal como un PRODUCTO FINAL
-        const newProduct: InventoryItem = {
-            id: Date.now().toString(),
-            name: project.name,
-            type: 'PRODUCTO',
-            totalCost: costWithFactorQ,
-            salePrice: salePrice,
-            profitMargin: project.profitMargin,
-            itemsCount: project.items.length,
-            date: Date.now()
-        };
-        saveToInventory(newProduct);
+        setIsSaving(true);
 
-        // 2. Extraer y guardar las recetas internas creadas en el paso anterior
-        // Esto permite reutilizarlas en futuros menús
-        project.items.forEach((item, index) => {
-            if (item.type === ItemType.RECETA) {
-                const newRecipe: InventoryItem = {
-                    id: `${Date.now()}-${index}`, // Unique ID
-                    name: item.name,
-                    type: 'RECETA',
-                    totalCost: item.cost, // Costo de producción de la receta
-                    salePrice: 0, // Las recetas base no suelen tener precio de venta directo en este contexto, o podría ser calculado
-                    profitMargin: 0,
-                    itemsCount: 1, // Simplificado, ya que el item receta viene consolidado
-                    date: Date.now()
-                };
-                saveToInventory(newRecipe);
-            }
-        });
+        try {
+            // 1. Guardar el PLATO (Dish)
+            const { data: dishData, error: dishError } = await supabase
+                .from('dishes')
+                .insert({
+                    user_id: user.id,
+                    name: project.name,
+                    total_cost: costWithFactorQ,
+                    sale_price: salePrice,
+                    profit_margin: project.profitMargin
+                })
+                .select()
+                .single();
 
-        // 3. Resetear y navegar
-        resetProject();
-        navigate('/inventory');
+            if (dishError) throw dishError;
+
+            const dishId = dishData.id;
+
+            // 2. Preparar ingredientes para guardar
+            // Mapeamos los items del proyecto a la estructura de dish_ingredients
+            const ingredientsToInsert = project.items.map(item => ({
+                dish_id: dishId,
+                name: item.name,
+                cost_snapshot: item.cost, // Costo calculado para este plato
+                used_quantity: item.usedQty,
+                used_unit: item.usedUnit || 'Und' // Fallback
+            }));
+
+            // 3. Insertar ingredientes
+            const { error: ingError } = await supabase
+                .from('dish_ingredients')
+                .insert(ingredientsToInsert);
+
+            if (ingError) throw ingError;
+
+            // 4. Éxito
+            alert("¡Proyecto guardado exitosamente!");
+            resetProject();
+            navigate('/inventory');
+
+        } catch (error: any) {
+            console.error('Error saving project:', error);
+            alert("Error al guardar: " + error.message);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
         <div className="bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-200 font-display min-h-screen flex flex-col transition-colors duration-200">
             <HeaderSimple />
-            
+
             <main className="flex-1 w-full max-w-[1440px] mx-auto p-4 md:p-8 flex flex-col items-center">
-                
+
                 {/* BOTÓN REGRESAR PERSISTENTE */}
                 <div className="w-full max-w-5xl mb-4">
-                     <button 
+                    <button
                         onClick={() => navigate('/costing-engine')}
                         className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors font-bold text-sm group"
                     >
                         <div className="p-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm group-hover:border-secondary group-hover:text-secondary transition-all">
-                             <span className="material-symbols-outlined text-[18px] block group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
+                            <span className="material-symbols-outlined text-[18px] block group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
                         </div>
                         <span>Volver a Insumos</span>
                     </button>
                 </div>
 
                 <section className="flex flex-col gap-6 w-full max-w-5xl">
-                    
+
                     {/* RESUMEN DEL PROYECTO (CARD SUPERIOR) */}
                     <div className="w-full bg-surface-light dark:bg-surface-dark p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
                         <div className="flex items-center gap-4 w-full md:w-auto">
-                             <div className="size-14 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20 shrink-0">
+                            <div className="size-14 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/20 shrink-0">
                                 <span className="material-symbols-outlined text-3xl">restaurant_menu</span>
                             </div>
                             <div>
@@ -91,25 +113,25 @@ const ResultsPage: React.FC = () => {
                             </div>
                         </div>
                         <div className="flex items-center gap-6 w-full md:w-auto bg-gray-50 dark:bg-gray-900/40 p-3 rounded-lg border border-gray-100 dark:border-gray-800">
-                             <div>
+                            <div>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Costo Base {project.factorQ && '(+5% Factor Q)'}</p>
                                 <p className="text-xl font-bold text-slate-700 dark:text-slate-300">{formatCurrency(costWithFactorQ)}</p>
-                             </div>
-                             <div className="h-8 w-px bg-gray-200 dark:bg-gray-700"></div>
-                             <div>
+                            </div>
+                            <div className="h-8 w-px bg-gray-200 dark:bg-gray-700"></div>
+                            <div>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Items</p>
                                 <p className="text-xl font-bold text-slate-700 dark:text-slate-300">{project.items.length}</p>
-                             </div>
+                            </div>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                        
+
                         {/* COLUMNA IZQUIERDA: SLIDER DE GANANCIA */}
                         <div className="lg:col-span-7 flex flex-col gap-6">
                             <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-6 relative overflow-hidden h-full">
                                 <div className="absolute top-0 left-0 w-1.5 h-full bg-secondary"></div>
-                                
+
                                 <div className="flex justify-between items-end mb-8">
                                     <div>
                                         <div className="flex items-center gap-2 mb-2">
@@ -126,13 +148,13 @@ const ResultsPage: React.FC = () => {
                                 </div>
 
                                 <div className="relative py-4 px-2 mb-8">
-                                    <input 
-                                        className="w-full slider-filled-track" 
-                                        id="profit-slider" 
-                                        max="200" 
-                                        min="0" 
-                                        type="range" 
-                                        value={project.profitMargin} 
+                                    <input
+                                        className="w-full slider-filled-track"
+                                        id="profit-slider"
+                                        max="200"
+                                        min="0"
+                                        type="range"
+                                        value={project.profitMargin}
                                         onChange={(e) => updateProfitMargin(Number(e.target.value))}
                                     />
                                     <div className="flex justify-between text-[10px] font-bold text-gray-400 mt-4 uppercase tracking-widest">
@@ -189,12 +211,17 @@ const ResultsPage: React.FC = () => {
 
                     {/* ACTION BUTTONS */}
                     <div className="mt-4">
-                         <button 
-                            className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary-light hover:to-secondary-dark text-white rounded-xl py-4 shadow-xl shadow-primary/20 transition-all transform hover:-translate-y-0.5 font-bold text-lg flex items-center justify-center gap-3 uppercase tracking-wide"
+                        <button
+                            disabled={isSaving}
+                            className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary-light hover:to-secondary-dark text-white rounded-xl py-4 shadow-xl shadow-primary/20 transition-all transform hover:-translate-y-0.5 font-bold text-lg flex items-center justify-center gap-3 uppercase tracking-wide disabled:opacity-70 disabled:cursor-not-allowed"
                             onClick={handleSaveAndFinish}
                         >
-                            <span className="material-symbols-outlined">save</span>
-                            GUARDAR Y FINALIZAR PROYECTO
+                            {isSaving ? (
+                                <span className="material-symbols-outlined animate-spin">refresh</span>
+                            ) : (
+                                <span className="material-symbols-outlined">save</span>
+                            )}
+                            {isSaving ? 'GUARDANDO...' : 'GUARDAR Y FINALIZAR PROYECTO'}
                         </button>
                     </div>
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from '../services/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import HeaderSimple from '../components/HeaderSimple';
 import { useApp } from '../context/AppContext';
@@ -9,53 +10,110 @@ const CostingEnginePage: React.FC = () => {
     const navigate = useNavigate();
     const { project, updateProjectName, addItem, removeItem, toggleFactorQ } = useApp();
 
-    // Local form state
+    // Supabase Integration State
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [selectedIngredient, setSelectedIngredient] = useState<any | null>(null);
+    const [isSearching, setIsSearching] = useState(false);
+
+    // Inputs (Controlled)
     const [searchQuery, setSearchQuery] = useState('');
-    const [itemType, setItemType] = useState<ItemType>(ItemType.INSUMO);
-    
-    // Simplified Inputs
-    const [buyPrice, setBuyPrice] = useState<string>(''); // Costo total del paquete/unidad
-    const [yieldQty, setYieldQty] = useState<string>(''); // Rendimiento (para cuántos alcanza)
+    const [useQty, setUseQty] = useState<string>(''); // Cuánto voy a usar en la receta
+    const [useUnit, setUseUnit] = useState<string>('Gr'); // En qué unidad lo voy a usar
+
+    // New Item Fallback (If not found in DB)
+    const [manualPrice, setManualPrice] = useState<string>('');
+    const [manualYield, setManualYield] = useState<string>(''); // Para items "al vuelo" que no son peso
 
     // Recipe Builder State
+    const [itemType, setItemType] = useState<ItemType>(ItemType.INSUMO);
     const [recipeName, setRecipeName] = useState('');
     const [tempRecipeIngredients, setTempRecipeIngredients] = useState<CostItem[]>([]);
 
     const isRecipeMode = itemType === ItemType.RECETA;
 
-    const handleAddIngredientOrItem = () => {
+    // Search Effect
+    React.useEffect(() => {
+        const search = async () => {
+            if (searchQuery.length < 2) {
+                setSearchResults([]);
+                return;
+            }
+            setIsSearching(true);
+            const { data } = await supabase
+                .from('ingredients')
+                .select('*')
+                .ilike('name', `%${searchQuery}%`)
+                .limit(5);
+            setSearchResults(data || []);
+            setIsSearching(false);
+        };
+        const timeoutId = setTimeout(search, 300);
+        return () => clearTimeout(timeoutId);
+    }, [searchQuery]);
+
+    const selectIngredient = (ing: any) => {
+        setSelectedIngredient(ing);
+        setSearchQuery(ing.name);
+        setSearchResults([]); // Hide dropdown
+        setUseUnit(ing.purchase_unit); // Suggest same unit by default
+    };
+
+    const handleAddItem = () => {
         if (!searchQuery) return;
 
-        const price = parseFloat(buyPrice) || 0;
-        const yieldAmount = parseFloat(yieldQty) || 1; // Default to 1 to avoid division by zero
+        let newItem: CostItem;
 
-        // Simplified Logic: Cost = Total Price / Yield
-        // Example: Bag of balloons $5000 / 50 balloons = $100 per balloon
-        const calculatedCost = price / yieldAmount;
+        if (selectedIngredient) {
+            // LOGIC A: Database Ingredient
+            // Cost = (Purchase Price / Purchase Qty) * Used Qty
+            // We need to normalize units if possible, but for simplicity V1 assume matching units or simple conversions
+            // If units match:
+            let cost = 0;
+            const uQty = parseFloat(useQty) || 0;
 
-        const newItem: CostItem = {
-            id: Date.now().toString(),
-            name: searchQuery,
-            type: isRecipeMode ? ItemType.INSUMO : itemType, 
-            cost: calculatedCost,
-            // Storing raw data for display
-            boughtPrice: price,
-            usedQty: yieldAmount, 
-            boughtUnit: 'Und', // Generic unit for simplified view
-            usedUnit: 'Und'
-        };
+            if (uQty > 0) {
+                const pricePerUnit = selectedIngredient.purchase_price / selectedIngredient.purchase_quantity;
+                cost = pricePerUnit * uQty;
+            }
+
+            newItem = {
+                id: Date.now().toString(),
+                name: selectedIngredient.name,
+                type: isRecipeMode ? ItemType.INSUMO : itemType,
+                cost: cost,
+                boughtPrice: selectedIngredient.purchase_price,
+                usedQty: uQty
+            };
+
+        } else {
+            // LOGIC B: Manual Item (On the user fly)
+            // Fallback to "Package Price" / "Yield" logic used before
+            const price = parseFloat(manualPrice) || 0;
+            const yieldAmount = parseFloat(manualYield) || 1;
+            const calcCost = price / yieldAmount;
+
+            newItem = {
+                id: Date.now().toString(),
+                name: searchQuery,
+                type: isRecipeMode ? ItemType.INSUMO : itemType,
+                cost: calcCost,
+                boughtPrice: price,
+                usedQty: 1 // Abstract yield
+            };
+        }
 
         if (isRecipeMode) {
             setTempRecipeIngredients([...tempRecipeIngredients, newItem]);
-            setSearchQuery('');
-            setBuyPrice('');
-            setYieldQty('');
         } else {
             addItem(newItem);
-            setSearchQuery('');
-            setBuyPrice('');
-            setYieldQty('');
         }
+
+        // Reset Form
+        setSearchQuery('');
+        setSelectedIngredient(null);
+        setUseQty('');
+        setManualPrice('');
+        setManualYield('');
     };
 
     const handleFinalizeRecipe = () => {
@@ -68,17 +126,15 @@ const CostingEnginePage: React.FC = () => {
             name: recipeName,
             type: ItemType.RECETA,
             cost: totalRecipeCost,
-            boughtPrice: totalRecipeCost, // For display consistency
+            boughtPrice: totalRecipeCost,
             usedQty: 1
         };
 
         addItem(recipeItem);
-        
+
         setTempRecipeIngredients([]);
         setRecipeName('');
         setSearchQuery('');
-        setBuyPrice('');
-        setYieldQty('');
     };
 
     const removeTempIngredient = (id: string) => {
@@ -92,15 +148,15 @@ const CostingEnginePage: React.FC = () => {
         <div className="bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-200 font-display min-h-screen flex flex-col transition-colors duration-200">
             <HeaderSimple />
             <main className="flex-1 w-full max-w-[1440px] mx-auto p-4 md:p-8 flex flex-col items-center">
-                
+
                 {/* BOTÓN REGRESAR PERSISTENTE */}
                 <div className="w-full max-w-5xl mb-4">
-                     <button 
+                    <button
                         onClick={() => navigate('/')}
                         className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors font-bold text-sm group"
                     >
                         <div className="p-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm group-hover:border-secondary group-hover:text-secondary transition-all">
-                             <span className="material-symbols-outlined text-[18px] block group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
+                            <span className="material-symbols-outlined text-[18px] block group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
                         </div>
                         <span>Regresar</span>
                     </button>
@@ -109,13 +165,13 @@ const CostingEnginePage: React.FC = () => {
                 <section className="flex flex-col gap-6 w-full max-w-5xl">
                     <div className="w-full bg-surface-light dark:bg-surface-dark p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
                         <div className="flex justify-between items-center mb-2">
-                             <label className="text-xs font-bold text-primary dark:text-primary-light uppercase tracking-wider block">Nombre del Menú a Costear</label>
+                            <label className="text-xs font-bold text-primary dark:text-primary-light uppercase tracking-wider block">Nombre del Menú a Costear</label>
                         </div>
                         <div className="relative">
-                            <input 
-                                className="w-full text-3xl font-black text-slate-900 dark:text-white bg-transparent border-0 border-b-2 border-gray-200 dark:border-gray-700 focus:border-primary dark:focus:border-primary focus:ring-0 px-0 py-2 placeholder-gray-300 transition-colors" 
-                                placeholder="Ej: Desayuno Sorpresa Aniversario" 
-                                type="text" 
+                            <input
+                                className="w-full text-3xl font-black text-slate-900 dark:text-white bg-transparent border-0 border-b-2 border-gray-200 dark:border-gray-700 focus:border-primary dark:focus:border-primary focus:ring-0 px-0 py-2 placeholder-gray-300 transition-colors"
+                                placeholder="Ej: Desayuno Sorpresa Aniversario"
+                                type="text"
                                 value={project.name}
                                 onChange={(e) => updateProjectName(e.target.value)}
                             />
@@ -123,7 +179,7 @@ const CostingEnginePage: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className={`bg-surface-light dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden group transition-all duration-300 ${isRecipeMode ? 'ring-2 ring-orange-400/50' : ''}`}>
+                    <div className={`bg-surface-light dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-visible group transition-all duration-300 ${isRecipeMode ? 'ring-2 ring-orange-400/50' : ''}`}>
                         <div className={`absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b ${isRecipeMode ? 'from-orange-400 to-red-500' : 'from-primary to-secondary'}`}></div>
                         <div className="p-6">
                             <div className="flex items-center gap-3 mb-6">
@@ -141,11 +197,11 @@ const CostingEnginePage: React.FC = () => {
                                 <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-full max-w-sm">
                                     {/* Only INSUMO and RECETA now */}
                                     <label className="flex-1 cursor-pointer">
-                                        <input 
+                                        <input
                                             checked={itemType === ItemType.INSUMO}
                                             onChange={() => setItemType(ItemType.INSUMO)}
-                                            className="peer sr-only" 
-                                            name="item_type" 
+                                            className="peer sr-only"
+                                            name="item_type"
                                             type="radio"
                                         />
                                         <span className="flex items-center justify-center py-2.5 px-3 rounded-md text-xs font-bold text-gray-500 dark:text-gray-400 peer-checked:bg-white dark:peer-checked:bg-surface-light peer-checked:text-slate-900 dark:peer-checked:text-white peer-checked:shadow-sm transition-all hover:text-slate-700 dark:hover:text-gray-200">
@@ -153,11 +209,11 @@ const CostingEnginePage: React.FC = () => {
                                         </span>
                                     </label>
                                     <label className="flex-1 cursor-pointer">
-                                        <input 
+                                        <input
                                             checked={itemType === ItemType.RECETA}
                                             onChange={() => setItemType(ItemType.RECETA)}
-                                            className="peer sr-only" 
-                                            name="item_type" 
+                                            className="peer sr-only"
+                                            name="item_type"
                                             type="radio"
                                         />
                                         <span className="flex items-center justify-center py-2.5 px-3 rounded-md text-xs font-bold text-gray-500 dark:text-gray-400 peer-checked:bg-white dark:peer-checked:bg-surface-light peer-checked:text-slate-900 dark:peer-checked:text-white peer-checked:shadow-sm transition-all hover:text-slate-700 dark:hover:text-gray-200">
@@ -173,9 +229,9 @@ const CostingEnginePage: React.FC = () => {
                                     <label className="section-label text-orange-600 dark:text-orange-400">Nombre de la Receta (Ej: Waffles)</label>
                                     <div className="relative group-focus-within:ring-2 ring-orange-400/20 rounded-lg transition-all">
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-orange-300 material-symbols-outlined text-[20px]">edit_note</span>
-                                        <input 
-                                            className="w-full bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-lg py-3 px-4 pl-10 text-sm focus:ring-2 focus:ring-orange-400/20 focus:border-orange-400 outline-none transition-all font-bold text-slate-800 dark:text-white" 
-                                            placeholder="Nombre de la receta que estás creando..." 
+                                        <input
+                                            className="w-full bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-lg py-3 px-4 pl-10 text-sm focus:ring-2 focus:ring-orange-400/20 focus:border-orange-400 outline-none transition-all font-bold text-slate-800 dark:text-white"
+                                            placeholder="Nombre de la receta que estás creando..."
                                             type="text"
                                             value={recipeName}
                                             onChange={(e) => setRecipeName(e.target.value)}
@@ -185,63 +241,123 @@ const CostingEnginePage: React.FC = () => {
                             )}
 
                             {/* MAIN INPUTS ROW */}
-                            <div className="flex flex-col lg:flex-row gap-6 mb-6">
-                                <div className="flex-1">
+                            <div className="flex flex-col lg:flex-row gap-6 mb-6 relative">
+                                <div className="flex-1 relative z-50">
                                     <label className="section-label">{isRecipeMode ? '¿Qué producto lleva la receta?' : 'Nombre del Insumo'}</label>
                                     <div className="relative group-focus-within:ring-2 ring-primary/10 rounded-lg transition-all">
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined text-[20px]">{isRecipeMode ? 'grocery' : 'search'}</span>
-                                        <input 
-                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 pl-10 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
+                                        <input
+                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-300 dark:border-gray-700 rounded-lg py-3 px-4 pl-10 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                                             placeholder={isRecipeMode ? "Ej: Harina de Trigo..." : "Ej: Caja Kraft, Moño..."}
                                             type="text"
                                             value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            onChange={(e) => {
+                                                setSearchQuery(e.target.value);
+                                                if (selectedIngredient) setSelectedIngredient(null); // Reset selection on edit
+                                            }}
                                         />
+                                        {/* BUSCADOR: Spinner */}
+                                        {isSearching && (
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined animate-spin text-gray-400 text-sm">progress_activity</span>
+                                        )}
                                     </div>
+
+                                    {/* DROPDOWN RESULTADOS */}
+                                    {searchResults.length > 0 && !selectedIngredient && (
+                                        <div className="absolute top-full left-0 w-full bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl mt-2 overflow-hidden z-[100] animate-fade-in-up">
+                                            <div className="p-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
+                                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Insumos en tu inventario</p>
+                                            </div>
+                                            {searchResults.map((ing) => (
+                                                <button
+                                                    key={ing.id}
+                                                    onClick={() => selectIngredient(ing)}
+                                                    className="w-full text-left p-3 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex justify-between items-center group border-b border-gray-50 dark:border-gray-800 last:border-0"
+                                                >
+                                                    <div>
+                                                        <p className="font-bold text-slate-800 dark:text-white text-sm">{ing.name}</p>
+                                                        <p className="text-xs text-gray-400">
+                                                            {formatCurrency(ing.purchase_price)} / {ing.purchase_quantity} {ing.purchase_unit}
+                                                        </p>
+                                                    </div>
+                                                    <span className="material-symbols-outlined text-gray-300 group-hover:text-primary">add_circle</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                            
+
                             <div className="flex flex-col xl:flex-row items-end gap-4">
                                 <div className="flex flex-col md:flex-row gap-2 w-full bg-gray-50 dark:bg-gray-900/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800 items-center">
-                                    
-                                    {/* UNIFIED INPUTS FOR BOTH MODES */}
-                                    <div className="flex-1 w-full">
-                                        <label className="section-label text-primary dark:text-primary-light">Costo de Compra (Lo que pagaste)</label>
-                                        <div className="relative">
-                                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
-                                            <input 
-                                                className="w-full bg-white dark:bg-background-dark border border-gray-300 dark:border-gray-700 rounded-md compact-input pl-6 text-center focus:border-primary outline-none" 
-                                                placeholder="Precio Total" 
-                                                type="number"
-                                                value={buyPrice}
-                                                onChange={(e) => setBuyPrice(e.target.value)}
-                                            />
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="text-gray-300 dark:text-gray-600 px-2">
-                                        <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                                    </div>
-                                    
-                                    <div className="flex-1 w-full">
-                                        <label className="section-label text-secondary dark:text-blue-300">Rendimiento (Unidades/Porciones)</label>
-                                        <input 
-                                            className="w-full bg-white dark:bg-background-dark border border-blue-200 dark:border-blue-900 rounded-md compact-input text-center focus:border-secondary outline-none ring-1 ring-blue-500/10" 
-                                            placeholder="¿Para cuánto alcanza?" 
-                                            type="number"
-                                            value={yieldQty}
-                                            onChange={(e) => setYieldQty(e.target.value)}
-                                        />
-                                    </div>
-                                
+
+                                    {selectedIngredient ? (
+                                        // MODO A: INGREDIENTE DE BASE DE DATOS SELECCIONADO
+                                        <>
+                                            <div className="flex-1 w-full bg-indigo-100 dark:bg-indigo-900/30 p-2 rounded-lg border border-indigo-200 dark:border-indigo-800 flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-indigo-500 uppercase">Costo Base</p>
+                                                    <p className="font-bold text-indigo-900 dark:text-indigo-200">{formatCurrency(selectedIngredient.purchase_price)} <span className="text-indigo-400">x Paquete</span></p>
+                                                </div>
+                                                <span className="material-symbols-outlined text-indigo-400">inventory_2</span>
+                                            </div>
+
+                                            <div className="text-gray-300 dark:text-gray-600 px-2">
+                                                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                                            </div>
+
+                                            <div className="flex-1 w-full relative">
+                                                <label className="section-label text-secondary dark:text-blue-300">¿Cuánto usarás? ({selectedIngredient.purchase_unit})</label>
+                                                <div className="relative">
+                                                    <input
+                                                        className="w-full bg-white dark:bg-background-dark border-2 border-secondary/20 dark:border-secondary/40 rounded-md compact-input text-center focus:border-secondary outline-none font-bold text-lg"
+                                                        placeholder="0"
+                                                        type="number"
+                                                        value={useQty}
+                                                        onChange={(e) => setUseQty(e.target.value)}
+                                                        autoFocus
+                                                    />
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">{selectedIngredient.purchase_unit}</span>
+                                                </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        // MODO B: INGREDIENTE MANUAL (Fallback)
+                                        <>
+                                            <div className="flex-1 w-full">
+                                                <label className="section-label text-gray-500">Costo Total Compra</label>
+                                                <div className="relative">
+                                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                                                    <input
+                                                        className="w-full bg-white dark:bg-background-dark border border-gray-300 dark:border-gray-700 rounded-md compact-input pl-6 text-center focus:border-primary outline-none"
+                                                        placeholder="Precio Total"
+                                                        type="number"
+                                                        value={manualPrice}
+                                                        onChange={(e) => setManualPrice(e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex-1 w-full">
+                                                <label className="section-label text-gray-500">Rendimiento (Unds)</label>
+                                                <input
+                                                    className="w-full bg-white dark:bg-background-dark border border-gray-300 dark:border-gray-700 rounded-md compact-input text-center focus:border-secondary outline-none"
+                                                    placeholder="¿Para cuánto alcanza?"
+                                                    type="number"
+                                                    value={manualYield}
+                                                    onChange={(e) => setManualYield(e.target.value)}
+                                                />
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
-                                
+
                                 <div className="w-full xl:w-auto">
-                                    <button 
-                                        onClick={handleAddIngredientOrItem}
+                                    <button
+                                        onClick={handleAddItem}
                                         className={`w-full xl:h-[76px] px-8 py-3 rounded-xl text-sm font-bold uppercase tracking-wide flex items-center justify-center gap-2 transition-all shadow-lg whitespace-nowrap group ${isRecipeMode ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-orange-200' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-primary hover:text-white shadow-slate-200 dark:shadow-none'}`}
                                     >
-                                        <span className="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform">{isRecipeMode ? 'playlist_add' : 'add_circle'}</span> 
+                                        <span className="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform">{isRecipeMode ? 'playlist_add' : 'add_circle'}</span>
                                         {isRecipeMode ? 'Agregar Ingrediente' : 'Agregar'}
                                     </button>
                                 </div>
@@ -276,7 +392,7 @@ const CostingEnginePage: React.FC = () => {
                                         ))}
                                     </div>
                                     <div className="mt-4 pt-3 border-t border-orange-200 dark:border-orange-800/30">
-                                        <button 
+                                        <button
                                             onClick={handleFinalizeRecipe}
                                             className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-lg font-bold shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 active:scale-95 transition-all"
                                         >
@@ -289,7 +405,7 @@ const CostingEnginePage: React.FC = () => {
 
                         </div>
                     </div>
-                    
+
                     {/* MAIN LIST */}
                     <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[400px]">
                         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/20">
@@ -332,7 +448,7 @@ const CostingEnginePage: React.FC = () => {
                                             </td>
                                             <td className="px-6 py-4 text-right"><span className="font-bold text-slate-900 dark:text-white text-base">{formatCurrency(item.cost)}</span></td>
                                             <td className="px-4 py-4 text-right">
-                                                <button 
+                                                <button
                                                     onClick={() => removeItem(item.id)}
                                                     className="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20">
                                                     <span className="material-symbols-outlined text-[18px]">delete</span>
@@ -361,9 +477,9 @@ const CostingEnginePage: React.FC = () => {
                                 </div>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer">
-                                <input 
-                                    className="sr-only peer" 
-                                    type="checkbox" 
+                                <input
+                                    className="sr-only peer"
+                                    type="checkbox"
                                     checked={project.factorQ}
                                     onChange={toggleFactorQ}
                                 />
@@ -385,7 +501,7 @@ const CostingEnginePage: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                    <button 
+                    <button
                         onClick={() => navigate('/results')}
                         className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary-light hover:to-secondary-dark text-white rounded-xl py-5 shadow-xl shadow-primary/20 transition-all transform hover:-translate-y-0.5 font-bold text-lg flex items-center justify-center gap-3">
                         <span>VER MI COSTO TOTAL</span>
