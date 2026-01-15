@@ -1,0 +1,8 @@
+{
+  "name": "COSTEA - Business Suite",
+  "description": "Herramienta de ingeniería financiera simple para emprendedores gastronómicos. Calcula costos, gestiona inventario y define precios de venta con IA integrada.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
