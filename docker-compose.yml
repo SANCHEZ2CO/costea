@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:80"
+    restart: always
+    # Environment variables for the runtime (if dynamic) or build args if needed
+    # Note: Vite env vars are baked in at build time, so usually you need to pass them as ARGs in build
+    # but for simplicity in this setup we assume .env is copied or args are passed.
+    # To properly handle secrets in build, we can use args here.
+    # env_file:
+    #   - .env
