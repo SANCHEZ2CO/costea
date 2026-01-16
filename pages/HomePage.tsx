@@ -23,20 +23,17 @@ const HomePage: React.FC = () => {
         <div className="bg-gradient-to-br from-white to-indigo-50 dark:from-background-dark dark:to-neutral-dark min-h-screen text-neutral-dark dark:text-white font-display overflow-hidden flex flex-col">
             <HeaderSimple />
 
-            {/* Auth Control (Top Right) - Removed as requested */}
-            {/* <div className="absolute top-4 right-4 z-50">...</div> */}
-
             <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
 
-            <main className="flex-1 flex flex-col items-center justify-center relative w-full px-4">
+            <main className="flex-1 flex flex-col items-center justify-start pt-12 md:pt-24 relative w-full px-4">
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-secondary/5 rounded-full blur-3xl -z-10"></div>
                 <div className="absolute top-1/4 right-1/4 w-[300px] h-[300px] bg-primary/10 rounded-full blur-3xl -z-10"></div>
                 <div className="max-w-4xl w-full flex flex-col items-center text-center gap-8 md:gap-12 animate-fade-in-up">
                     <div className="flex flex-col gap-2">
-                        <h2 className="text-3xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-secondary to-primary tracking-tight">
+                        <h2 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-secondary to-primary tracking-tighter">
                             ¿Qué vamos a crear hoy?
                         </h2>
-                        <p className="text-lg md:text-xl text-neutral-gray dark:text-slate-300 font-medium max-w-2xl mx-auto mt-2">
+                        <p className="text-xl md:text-2xl text-neutral-gray dark:text-slate-300 font-bold max-w-2xl mx-auto mt-2">
                             Ingeniería financiera simple para tus desayunos sorpresa.
                         </p>
                     </div>

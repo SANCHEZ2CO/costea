@@ -41,3 +41,17 @@ export interface ChatMessage {
     text: string;
     timestamp: number;
 }
+
+export interface AppSettings {
+    currency: string;
+    language: string;
+    measurementSystem: 'metric' | 'imperial';
+    factorQPercentage: number;
+    monthlySalary: number;
+}
+
+export interface OrganizationSettings {
+    name: string;
+    slogan: string;
+    logo: string;
+}

@@ -7,7 +7,7 @@ interface HeaderProps {
 }
 
 const HeaderSimple: React.FC<HeaderProps> = ({ showProfile = true }) => {
-    const { user, signOut } = useApp();
+    const { user, signOut, organization } = useApp();
     const navigate = useNavigate();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -42,10 +42,10 @@ const HeaderSimple: React.FC<HeaderProps> = ({ showProfile = true }) => {
     };
 
     return (
-        <header className="w-full py-6 px-4 md:px-8 flex justify-between items-center z-20 bg-white/50 dark:bg-neutral-900/50 backdrop-blur-md sticky top-0 border-b border-gray-100 dark:border-white/5">
+        <header className="w-full py-2 px-4 md:px-8 flex justify-between items-center z-20 bg-white/50 dark:bg-neutral-900/50 backdrop-blur-md sticky top-0 border-b border-gray-100 dark:border-white/5">
             <Link to="/" className="flex items-center gap-3 group">
-                <div className="h-14 w-14 relative transition-transform group-hover:scale-105">
-                    <img alt="Sanchez2 Logo" className="h-full w-full object-contain" src="/images/logos/sanchez2-logo.png" />
+                <div className="h-10 w-10 relative transition-transform group-hover:scale-105">
+                    <img alt={organization?.name || "Logo"} className="h-full w-full object-contain" src={organization?.logo || "/images/logos/sanchez2-logo.png"} />
                 </div>
             </Link>
 

@@ -1,13 +1,20 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { ProjectState, CostItem, InventoryItem } from '../types';
+import { ProjectState, CostItem, InventoryItem, AppSettings, OrganizationSettings } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
 
 interface AppContextType {
     project: ProjectState;
     inventory: InventoryItem[];
+    // Settings
+    settings: AppSettings;
+    organization: OrganizationSettings;
+    updateSettings: (settings: Partial<AppSettings>) => void;
+    updateOrganization: (org: Partial<OrganizationSettings>) => void;
+
     updateProjectName: (name: string) => void;
     addItem: (item: CostItem) => void;
+    updateItem: (id: string, updatedItem: CostItem) => void;
     removeItem: (id: string) => void;
     toggleFactorQ: () => void;
     updateProfitMargin: (margin: number) => void;
@@ -30,11 +37,27 @@ const defaultState: ProjectState = {
     profitMargin: 35
 };
 
+const defaultSettings: AppSettings = {
+    currency: 'COP $',
+    language: 'Español',
+    measurementSystem: 'metric',
+    factorQPercentage: 10,
+    monthlySalary: 2715500
+};
+
+const defaultOrganization: OrganizationSettings = {
+    name: 'Sanchez2 Desayunos',
+    slogan: 'Detalles que enamoran',
+    logo: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAWAsy8wcOb3JNIsqGGANh8KnY6uc4RQviFqv_GHNBGZr8lZdLM0LElZCqRjOUWrfV89aHha22CUVdfjaObwO3FkzNDDiHB4NExDiTY9dvI423sotCywOAdVQ8_FVwM_y2tJECFVObMU6dhIa1NTj-JV8eU2gXlwhD21CTUbr8WU1cASqas1TFETkXMrWTHO5lm-6ghhHc1cQrm3z9q_P9zb60k75LOqxFL9ZeTWr2eFdxTQIZZZfh94b6mOVvtXW6NwZPrlAI-pzQf'
+};
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [project, setProject] = useState<ProjectState>(defaultState);
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
+    const [settings, setSettings] = useState<AppSettings>(defaultSettings);
+    const [organization, setOrganization] = useState<OrganizationSettings>(defaultOrganization);
 
     // Auth State
     const [user, setUser] = useState<User | null>(null);
@@ -82,12 +105,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setInventory([]); // Clear local inventory on logout
     };
 
+    const updateSettings = (newSettings: Partial<AppSettings>) => {
+        setSettings(prev => ({ ...prev, ...newSettings }));
+    };
+
+    const updateOrganization = (newOrg: Partial<OrganizationSettings>) => {
+        setOrganization(prev => ({ ...prev, ...newOrg }));
+    };
+
     const updateProjectName = (name: string) => {
         setProject(prev => ({ ...prev, name }));
     };
 
     const addItem = (item: CostItem) => {
         setProject(prev => ({ ...prev, items: [...prev.items, item] }));
+    };
+
+    const updateItem = (id: string, updatedItem: CostItem) => {
+        setProject(prev => ({
+            ...prev,
+            items: prev.items.map(i => i.id === id ? updatedItem : i)
+        }));
     };
 
     const removeItem = (id: string) => {
@@ -115,8 +153,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         <AppContext.Provider value={{
             project,
             inventory,
+            settings,
+            organization,
+            updateSettings,
+            updateOrganization,
             updateProjectName,
             addItem,
+            updateItem,
             removeItem,
             toggleFactorQ,
             updateProfitMargin,

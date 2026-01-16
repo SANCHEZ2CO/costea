@@ -8,7 +8,9 @@ import { formatCurrency } from '../constants';
 
 const CostingEnginePage: React.FC = () => {
     const navigate = useNavigate();
-    const { project, updateProjectName, addItem, removeItem, toggleFactorQ } = useApp();
+    const { project, updateProjectName, addItem, updateItem, removeItem, toggleFactorQ, user, settings } = useApp();
+    const [editingCostItem, setEditingCostItem] = useState<CostItem | null>(null);
+    const [laborTimeMinutes, setLaborTimeMinutes] = useState<number>(0);
 
     // Supabase Integration State
     const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -18,7 +20,7 @@ const CostingEnginePage: React.FC = () => {
     // Inputs (Controlled)
     const [searchQuery, setSearchQuery] = useState('');
     const [useQty, setUseQty] = useState<string>(''); // Cuánto voy a usar en la receta
-    const [useUnit, setUseUnit] = useState<string>('Gr'); // En qué unidad lo voy a usar
+    const [useUnit, setUseUnit] = useState<string>('Und'); // En qué unidad lo voy a usar
 
     // New Item Fallback (If not found in DB)
     const [manualPrice, setManualPrice] = useState<string>('');
@@ -58,16 +60,13 @@ const CostingEnginePage: React.FC = () => {
         setUseUnit(ing.purchase_unit); // Suggest same unit by default
     };
 
-    const handleAddItem = () => {
+    const handleAddItem = async () => {
         if (!searchQuery) return;
 
         let newItem: CostItem;
 
         if (selectedIngredient) {
             // LOGIC A: Database Ingredient
-            // Cost = (Purchase Price / Purchase Qty) * Used Qty
-            // We need to normalize units if possible, but for simplicity V1 assume matching units or simple conversions
-            // If units match:
             let cost = 0;
             const uQty = parseFloat(useQty) || 0;
 
@@ -87,10 +86,31 @@ const CostingEnginePage: React.FC = () => {
 
         } else {
             // LOGIC B: Manual Item (On the user fly)
-            // Fallback to "Package Price" / "Yield" logic used before
             const price = parseFloat(manualPrice) || 0;
             const yieldAmount = parseFloat(manualYield) || 1;
             const calcCost = price / yieldAmount;
+
+            // AUTO-CREATE INGREDIENT IN DB (Save manual entries to inventory)
+            if (user && (isRecipeMode || itemType === ItemType.INSUMO)) {
+                try {
+                    console.log("Auto-creating ingredient:", searchQuery);
+                    const { error } = await supabase
+                        .from('ingredients')
+                        .insert({
+                            user_id: user.id,
+                            name: searchQuery,
+                            purchase_price: price,
+                            purchase_quantity: yieldAmount,
+                            purchase_unit: useUnit
+                        });
+
+                    if (error) {
+                        console.error("Error auto-creating ingredient:", error);
+                    }
+                } catch (err) {
+                    console.error("Unexpected error creating ingredient:", err);
+                }
+            }
 
             newItem = {
                 id: Date.now().toString(),
@@ -119,30 +139,57 @@ const CostingEnginePage: React.FC = () => {
     const handleFinalizeRecipe = () => {
         if (tempRecipeIngredients.length === 0 || !recipeName) return;
 
-        const totalRecipeCost = tempRecipeIngredients.reduce((acc, item) => acc + item.cost, 0);
+        const totalCost = tempRecipeIngredients.reduce((acc, i) => acc + i.cost, 0);
 
-        const recipeItem: CostItem = {
+        const newRecipe: CostItem = {
             id: Date.now().toString(),
             name: recipeName,
             type: ItemType.RECETA,
-            cost: totalRecipeCost,
-            boughtPrice: totalRecipeCost,
+            cost: totalCost,
+            boughtPrice: totalCost,
             usedQty: 1
         };
 
-        addItem(recipeItem);
+        addItem(newRecipe);
 
-        setTempRecipeIngredients([]);
+        // Reset
+        setItemType(ItemType.INSUMO);
         setRecipeName('');
-        setSearchQuery('');
+        setTempRecipeIngredients([]);
+    };
+
+    const handleUpdateCostItem = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingCostItem) return;
+
+        // Recalculate cost based on new price and yield
+        const price = editingCostItem.boughtPrice || 0;
+        const yieldQty = editingCostItem.usedQty || 1;
+        const newCost = price / yieldQty;
+
+        const updatedItem = {
+            ...editingCostItem,
+            cost: newCost
+        };
+
+        updateItem(editingCostItem.id, updatedItem);
+        setEditingCostItem(null);
     };
 
     const removeTempIngredient = (id: string) => {
         setTempRecipeIngredients(prev => prev.filter(i => i.id !== id));
     };
 
-    const totalCost = project.items.reduce((acc, item) => acc + item.cost, 0);
-    const finalCost = project.factorQ ? totalCost * 1.05 : totalCost;
+    // Labor Cost Calculation
+    // Assuming 30 days, 8 hours per day = 240 hours. 240 hours * 60 minutes = 14400 minutes.
+    const monthlyMinutes = 30 * 8 * 60;
+    const laborCostPerMinute = (settings?.monthlySalary || 0) / monthlyMinutes;
+    const laborCostTotal = laborTimeMinutes * laborCostPerMinute;
+
+    const totalMaterialsCost = project.items.reduce((acc, item) => acc + item.cost, 0);
+    const factorQMultiplier = 1 + ((settings?.factorQPercentage || 0) / 100);
+    const materialsWithFactorQ = project.factorQ ? totalMaterialsCost * factorQMultiplier : totalMaterialsCost;
+    const finalCost = materialsWithFactorQ + laborCostTotal;
 
     return (
         <div className="bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-200 font-display min-h-screen flex flex-col transition-colors duration-200">
@@ -294,10 +341,19 @@ const CostingEnginePage: React.FC = () => {
                                     {selectedIngredient ? (
                                         // MODO A: INGREDIENTE DE BASE DE DATOS SELECCIONADO
                                         <>
-                                            <div className="flex-1 w-full bg-indigo-100 dark:bg-indigo-900/30 p-2 rounded-lg border border-indigo-200 dark:border-indigo-800 flex items-center justify-between">
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-indigo-500 uppercase">Costo Base</p>
-                                                    <p className="font-bold text-indigo-900 dark:text-indigo-200">{formatCurrency(selectedIngredient.purchase_price)} <span className="text-indigo-400">x Paquete</span></p>
+                                            <div className="flex-1 w-full bg-indigo-100 dark:bg-indigo-900/30 p-2 rounded-lg border border-indigo-200 dark:border-indigo-800 flex items-center justify-between group/sel">
+                                                <div className="flex items-center gap-3">
+                                                    <button
+                                                        onClick={() => { setSelectedIngredient(null); setSearchQuery(''); }}
+                                                        className="size-7 flex items-center justify-center rounded-full bg-white/50 hover:bg-red-500 hover:text-white text-indigo-500 transition-all shadow-sm active:scale-95"
+                                                        title="Quitar ingrediente"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[18px]">close</span>
+                                                    </button>
+                                                    <div>
+                                                        <p className="text-[10px] font-bold text-indigo-500 uppercase">Costo Base</p>
+                                                        <p className="font-bold text-indigo-900 dark:text-indigo-200">{formatCurrency(selectedIngredient.purchase_price)} <span className="text-indigo-400">x Paquete</span></p>
+                                                    </div>
                                                 </div>
                                                 <span className="material-symbols-outlined text-indigo-400">inventory_2</span>
                                             </div>
@@ -339,14 +395,25 @@ const CostingEnginePage: React.FC = () => {
                                             </div>
 
                                             <div className="flex-1 w-full">
-                                                <label className="section-label text-gray-500">Rendimiento (Unds)</label>
-                                                <input
-                                                    className="w-full bg-white dark:bg-background-dark border border-gray-300 dark:border-gray-700 rounded-md compact-input text-center focus:border-secondary outline-none"
-                                                    placeholder="¿Para cuánto alcanza?"
-                                                    type="number"
-                                                    value={manualYield}
-                                                    onChange={(e) => setManualYield(e.target.value)}
-                                                />
+                                                <label className="section-label text-gray-500">Rendimiento (Paquete)</label>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        className="flex-1 bg-white dark:bg-background-dark border border-gray-300 dark:border-gray-700 rounded-md compact-input text-center focus:border-secondary outline-none"
+                                                        placeholder="Ej: 1000"
+                                                        type="number"
+                                                        value={manualYield}
+                                                        onChange={(e) => setManualYield(e.target.value)}
+                                                    />
+                                                    <select
+                                                        value={useUnit}
+                                                        onChange={(e) => setUseUnit(e.target.value)}
+                                                        className="w-16 bg-gray-50 dark:bg-gray-800 border-0 rounded-md py-2 px-1 text-xs font-bold text-gray-500 outline-none"
+                                                    >
+                                                        {['Und', 'Gr', 'Ml', 'Kg', 'Lt'].map(u => (
+                                                            <option key={u} value={u}>{u}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
                                             </div>
                                         </>
                                     )}
@@ -448,11 +515,18 @@ const CostingEnginePage: React.FC = () => {
                                             </td>
                                             <td className="px-6 py-4 text-right"><span className="font-bold text-slate-900 dark:text-white text-base">{formatCurrency(item.cost)}</span></td>
                                             <td className="px-4 py-4 text-right">
-                                                <button
-                                                    onClick={() => removeItem(item.id)}
-                                                    className="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20">
-                                                    <span className="material-symbols-outlined text-[18px]">delete</span>
-                                                </button>
+                                                <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => setEditingCostItem(item)}
+                                                        className="text-gray-300 hover:text-secondary transition-colors p-1.5 rounded-full hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+                                                        <span className="material-symbols-outlined text-[18px]">edit</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => removeItem(item.id)}
+                                                        className="text-gray-300 hover:text-red-500 transition-colors p-1.5 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20">
+                                                        <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -467,24 +541,55 @@ const CostingEnginePage: React.FC = () => {
                             </table>
                         </div>
                         <div className="border-t border-gray-200 dark:border-gray-800 p-5 bg-gray-50 dark:bg-gray-900/30 flex items-center justify-between mt-auto">
+
+                            {/* Labor Time Input - NOW FIRST */}
                             <div className="flex items-center gap-4">
+                                <div className="p-2 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400">
+                                    <span className="material-symbols-outlined text-[22px]">timer</span>
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Tiempo de Mano de Obra</h4>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            className="w-16 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-xs font-bold focus:border-green-500 outline-none text-center"
+                                            value={laborTimeMinutes}
+                                            onChange={(e) => setLaborTimeMinutes(parseFloat(e.target.value) || 0)}
+                                            placeholder="Min"
+                                        />
+                                        <span className="text-xs text-gray-500">minutos</span>
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 mt-1">
+                                        Basado en salario de {formatCurrency(settings?.monthlySalary || 0)}
+                                    </p>
+                                </div>
+                                {laborTimeMinutes > 0 && (
+                                    <div className="ml-2 px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded text-xs font-bold text-green-700 dark:text-green-300">
+                                        + {formatCurrency(laborCostTotal)}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Factor Q - NOW SECOND - GROUPED */}
+                            <div className="flex items-center gap-4 border-l border-gray-200 dark:border-gray-700 pl-4 ml-auto">
                                 <div className="p-2 rounded-lg bg-secondary/10 text-secondary">
                                     <span className="material-symbols-outlined text-[22px]">science</span>
                                 </div>
                                 <div>
-                                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Factor Q (+5%)</h4>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 leading-none mt-1">Colchón de seguridad para mermas</p>
+                                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Factor Q (+{settings?.factorQPercentage || 5}%)</h4>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 leading-none mt-1">Colchón de seguridad</p>
                                 </div>
+                                <label className="relative inline-flex items-center cursor-pointer ml-2">
+                                    <input
+                                        className="sr-only peer"
+                                        type="checkbox"
+                                        checked={project.factorQ}
+                                        onChange={toggleFactorQ}
+                                    />
+                                    <div className="w-12 h-7 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:border-gray-600 peer-checked:bg-secondary"></div>
+                                </label>
                             </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    className="sr-only peer"
-                                    type="checkbox"
-                                    checked={project.factorQ}
-                                    onChange={toggleFactorQ}
-                                />
-                                <div className="w-12 h-7 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:border-gray-600 peer-checked:bg-secondary"></div>
-                            </label>
                         </div>
                     </div>
                     <div className="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800 rounded-xl p-4 flex flex-col sm:flex-row gap-4 items-center sm:items-start text-center sm:text-left">
@@ -496,8 +601,14 @@ const CostingEnginePage: React.FC = () => {
                             <div className="flex flex-col sm:flex-row gap-x-6 gap-y-1 text-xs text-indigo-700 dark:text-indigo-300">
                                 <span className="flex items-center gap-1.5 justify-center sm:justify-start">
                                     <span className="size-1.5 rounded-full bg-indigo-400"></span>
-                                    Costo Total: <span className="font-bold">{formatCurrency(finalCost)}</span>
+                                    <span className="font-bold">{formatCurrency(finalCost)}</span>
                                 </span>
+                                {laborTimeMinutes > 0 && (
+                                    <span className="flex items-center gap-1.5 justify-center sm:justify-start text-green-600 dark:text-green-400">
+                                        <span className="size-1.5 rounded-full bg-green-400"></span>
+                                        Mano Obra: <span className="font-bold">{formatCurrency(laborCostTotal)}</span>
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -512,6 +623,60 @@ const CostingEnginePage: React.FC = () => {
             <footer className="w-full py-4 text-center text-sm text-neutral-gray/60 dark:text-slate-500 mt-auto">
                 <p>Moneda: <span className="font-bold text-secondary">COP $</span> • Medidas: <span className="font-bold">Gramos / Mililitros</span></p>
             </footer>
+
+            {/* MODAL: EDICIÓN DE ITEM EN LISTA */}
+            {editingCostItem && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-surface-dark w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 transform transition-all scale-100 animate-fade-in-up">
+                        <div className="p-6 text-center bg-gradient-to-r from-secondary to-primary relative overflow-hidden">
+                            <div className="absolute inset-0 bg-white/10 opacity-50 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+                            <h3 className="text-2xl font-black text-white relative z-10 mb-1">Editar Item</h3>
+                            <button onClick={() => setEditingCostItem(null)} className="absolute top-4 right-4 text-white/80 hover:text-white focus:outline-none">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <form onSubmit={handleUpdateCostItem} className="p-8 flex flex-col gap-6">
+                            <div>
+                                <label className="section-label">Nombre del Item</label>
+                                <input
+                                    className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 px-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
+                                    value={editingCostItem.name}
+                                    onChange={e => setEditingCostItem({ ...editingCostItem, name: e.target.value })}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="section-label">Precio Compra</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                                        <input
+                                            type="number"
+                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 pl-6 pr-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
+                                            value={editingCostItem.boughtPrice}
+                                            onChange={e => setEditingCostItem({ ...editingCostItem, boughtPrice: parseFloat(e.target.value) })}
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="section-label">Rendimiento</label>
+                                    <input
+                                        type="number"
+                                        className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 px-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
+                                        value={editingCostItem.usedQty}
+                                        onChange={e => setEditingCostItem({ ...editingCostItem, usedQty: parseFloat(e.target.value) })}
+                                    />
+                                </div>
+                            </div>
+                            <button
+                                type="submit"
+                                className="w-full bg-secondary hover:bg-secondary-dark font-bold text-white py-4 rounded-xl shadow-lg shadow-secondary/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                            >
+                                ACTUALIZAR ITEM
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
