@@ -7,17 +7,14 @@ import ResultsPage from './pages/ResultsPage';
 import InventoryPage from './pages/InventoryPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
+import LiquidLoader from './components/LiquidLoader';
 
 // Wrapper for protected routes
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user, loading } = useApp();
 
     if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-background-dark">
-                <span className="material-symbols-outlined animate-spin text-4xl text-secondary">progress_activity</span>
-            </div>
-        );
+        return <LiquidLoader />;
     }
 
     if (!user) {

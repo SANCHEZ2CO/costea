@@ -5,6 +5,8 @@ import HeaderSimple from '../components/HeaderSimple';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../constants';
 import { InventoryItem } from '../types';
+import LiquidLoader from '../components/LiquidLoader';
+import LiquidModal from '../components/LiquidModal';
 
 const InventoryPage: React.FC = () => {
     const navigate = useNavigate();
@@ -33,7 +35,38 @@ const InventoryPage: React.FC = () => {
     // Modal & Action State
     const [editingItem, setEditingItem] = useState<any | null>(null);
     const [editingItemDish, setEditingItemDish] = useState<any | null>(null);
+    const [editingDishIngredients, setEditingDishIngredients] = useState<any[]>([]);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ id: string, name: string, type: 'INSUMO' | 'PRODUCTO' | 'RECETA' } | null>(null);
+
+    // Edit Modal Search State
+    const [editSearchQuery, setEditSearchQuery] = useState('');
+    const [isSearchingEdit, setIsSearchingEdit] = useState(false);
+    const [editSearchResults, setEditSearchResults] = useState<any[]>([]);
+    const [editSelectedIng, setEditSelectedIng] = useState<any | null>(null);
+    const [editUseQty, setEditUseQty] = useState('');
+
+    // Generic Alert Modal State
+    const [alertModal, setAlertModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type: 'success' | 'error' | 'warning' | 'info';
+        onConfirm?: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        type: 'info'
+    });
+
+    const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', onConfirm?: () => void) => {
+        setAlertModal({ isOpen: true, title, message, type, onConfirm });
+    };
+
+    const closeAlert = () => {
+        setAlertModal(prev => ({ ...prev, isOpen: false }));
+        if (alertModal.onConfirm) alertModal.onConfirm();
+    };
 
     // Fetch Data Effect
     React.useEffect(() => {
@@ -66,6 +99,43 @@ const InventoryPage: React.FC = () => {
         const timeoutId = setTimeout(search, 300);
         return () => clearTimeout(timeoutId);
     }, [searchQuery, filterType]);
+
+    // Search Effect (for Edit Modal)
+    React.useEffect(() => {
+        if (!editingItemDish) return;
+        const search = async () => {
+            if (editSearchQuery.length < 2) {
+                setEditSearchResults([]);
+                return;
+            }
+            setIsSearchingEdit(true);
+            const { data } = await supabase
+                .from('ingredients')
+                .select('*')
+                .ilike('name', `%${editSearchQuery}%`)
+                .limit(5);
+            setEditSearchResults(data || []);
+            setIsSearchingEdit(false);
+        };
+        const timeoutId = setTimeout(search, 300);
+        return () => clearTimeout(timeoutId);
+    }, [editSearchQuery, editingItemDish]);
+
+    // Fetch Recipe Ingredients when editing
+    React.useEffect(() => {
+        if (!editingItemDish) {
+            setEditingDishIngredients([]);
+            return;
+        }
+        const fetchRecipeIngredients = async () => {
+            const { data, error } = await supabase
+                .from('dish_ingredients')
+                .select('*')
+                .eq('dish_id', editingItemDish.id);
+            if (!error) setEditingDishIngredients(data || []);
+        };
+        fetchRecipeIngredients();
+    }, [editingItemDish]);
 
     const fetchIngredients = async () => {
         setLoadingData(true);
@@ -115,7 +185,7 @@ const InventoryPage: React.FC = () => {
 
     const handleSaveIngredient = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user) return alert("Debes iniciar sesión");
+        if (!user) { showAlert("Sesión Requerida", "Debes iniciar sesión.", "warning"); return; }
         if (!newIng.name || !newIng.price || !newIng.qty) return;
 
         setIsSubmitting(true);
@@ -128,7 +198,7 @@ const InventoryPage: React.FC = () => {
         });
 
         if (error) {
-            alert("Error al guardar: " + error.message);
+            showAlert("Error", "Error al guardar: " + error.message, "error");
         } else {
             setNewIng({ name: '', price: '', qty: '', unit: 'Und' });
             fetchIngredients(); // Refresh list
@@ -140,37 +210,44 @@ const InventoryPage: React.FC = () => {
         if (!searchQuery) return;
 
         let newItem: any;
+        const uQty = parseFloat(useQty) || 0;
+
         if (selectedIngredient) {
-            const uQty = parseFloat(useQty) || 0;
             const pricePerUnit = selectedIngredient.purchase_price / selectedIngredient.purchase_quantity;
             newItem = {
                 id: Date.now().toString(),
+                db_id: selectedIngredient.id,
                 name: selectedIngredient.name,
                 cost: pricePerUnit * uQty,
                 boughtPrice: selectedIngredient.purchase_price,
-                usedQty: uQty
+                usedQty: uQty,
+                usedUnit: selectedIngredient.purchase_unit
             };
         } else {
             const price = parseFloat(manualPrice) || 0;
             const yieldAmount = parseFloat(manualYield) || 1;
             const calcCost = price / yieldAmount;
 
+            let db_id = null;
             if (user) {
-                await supabase.from('ingredients').insert({
+                const { data } = await supabase.from('ingredients').insert({
                     user_id: user.id,
                     name: searchQuery,
                     purchase_price: price,
                     purchase_quantity: yieldAmount,
                     purchase_unit: useUnit
-                });
+                }).select().single();
+                db_id = data?.id;
             }
 
             newItem = {
                 id: Date.now().toString(),
+                db_id: db_id,
                 name: searchQuery,
                 cost: calcCost,
                 boughtPrice: price,
-                usedQty: 1
+                usedQty: 1,
+                usedUnit: useUnit
             };
         }
 
@@ -188,20 +265,35 @@ const InventoryPage: React.FC = () => {
         setIsSubmitting(true);
         const totalCost = tempRecipeIngredients.reduce((acc, i) => acc + i.cost, 0);
 
-        const { error } = await supabase.from('dishes').insert({
-            user_id: user.id,
-            name: recipeName,
-            total_cost: totalCost,
-            sale_price: 0,
-            profit_margin: 0
-        });
+        try {
+            const { data: dish, error } = await supabase.from('dishes').insert({
+                user_id: user.id,
+                name: recipeName,
+                total_cost: totalCost,
+                sale_price: 0,
+                profit_margin: 0
+            }).select().single();
 
-        if (error) {
-            alert("Error al guardar receta: " + error.message);
-        } else {
+            if (error) throw error;
+
+            if (dish) {
+                // Save Ingredients
+                const details = tempRecipeIngredients.map(i => ({
+                    dish_id: dish.id,
+                    ingredient_id: i.db_id,
+                    name: i.name,
+                    used_quantity: i.usedQty || 1,
+                    used_unit: i.usedUnit || 'Und',
+                    cost_snapshot: i.cost
+                }));
+                await supabase.from('dish_ingredients').insert(details);
+            }
+
             setRecipeName('');
             setTempRecipeIngredients([]);
             fetchDishes();
+        } catch (error: any) {
+            showAlert("Error", "Error al guardar receta: " + error.message, "error");
         }
         setIsSubmitting(false);
     };
@@ -211,23 +303,77 @@ const InventoryPage: React.FC = () => {
         if (!editingItemDish || !user) return;
 
         setIsSubmitting(true);
-        const { error } = await supabase
-            .from('dishes')
-            .update({
-                name: editingItemDish.name,
-                total_cost: parseFloat(editingItemDish.total_cost),
-                sale_price: parseFloat(editingItemDish.sale_price || 0),
-                profit_margin: parseFloat(editingItemDish.profit_margin || 0)
-            })
-            .eq('id', editingItemDish.id);
+        try {
+            // 1. Calculate current total cost from editing list
+            const currentTotalCost = editingDishIngredients.reduce((acc, i) => acc + (parseFloat(i.cost_snapshot) || 0), 0);
 
-        if (error) {
-            alert("Error al actualizar: " + error.message);
-        } else {
+            // 2. Update Dish Header
+            const { error: dishError } = await supabase
+                .from('dishes')
+                .update({
+                    name: editingItemDish.name,
+                    total_cost: currentTotalCost,
+                    sale_price: parseFloat(editingItemDish.sale_price || 0),
+                    profit_margin: parseFloat(editingItemDish.profit_margin || 0)
+                })
+                .eq('id', editingItemDish.id);
+
+            if (dishError) throw dishError;
+
+            // 3. Sync Ingredients: delete all and re-insert for the dish
+            const { error: deleteError } = await supabase
+                .from('dish_ingredients')
+                .delete()
+                .eq('dish_id', editingItemDish.id);
+
+            if (deleteError) throw deleteError;
+
+            if (editingDishIngredients.length > 0) {
+                const details = editingDishIngredients.map(i => ({
+                    dish_id: editingItemDish.id,
+                    ingredient_id: i.ingredient_id,
+                    name: i.name,
+                    used_quantity: parseFloat(i.used_quantity || 0),
+                    used_unit: i.used_unit || 'Und',
+                    cost_snapshot: parseFloat(i.cost_snapshot || 0)
+                }));
+                const { error: insertError } = await supabase.from('dish_ingredients').insert(details);
+                if (insertError) throw insertError;
+            }
+
             setEditingItemDish(null);
             fetchDishes();
+        } catch (error: any) {
+            showAlert("Error", "Error al actualizar: " + error.message, "error");
         }
         setIsSubmitting(false);
+    };
+
+    const handleRemoveFromEditing = (id: string | number) => {
+        setEditingDishIngredients(prev => prev.filter(i => (i.id || i.name) !== id));
+    };
+
+    const handleAddToEditing = () => {
+        if (!editSelectedIng || !editUseQty) return;
+
+        const uQty = parseFloat(editUseQty);
+        const pricePerUnit = editSelectedIng.purchase_price / editSelectedIng.purchase_quantity;
+        const calcCost = pricePerUnit * uQty;
+
+        const newItem = {
+            id: Date.now().toString(),
+            dish_id: editingItemDish.id,
+            ingredient_id: editSelectedIng.id,
+            name: editSelectedIng.name,
+            used_quantity: uQty,
+            used_unit: editSelectedIng.purchase_unit,
+            cost_snapshot: calcCost
+        };
+
+        setEditingDishIngredients([...editingDishIngredients, newItem]);
+        setEditSearchQuery('');
+        setEditSelectedIng(null);
+        setEditUseQty('');
     };
 
     const handleUpdateIngredient = async (e: React.FormEvent) => {
@@ -246,7 +392,7 @@ const InventoryPage: React.FC = () => {
             .eq('id', editingItem.id);
 
         if (error) {
-            alert("Error al actualizar: " + error.message);
+            showAlert("Error", "Error al actualizar: " + error.message, "error");
         } else {
             setEditingItem(null);
             fetchIngredients();
@@ -266,7 +412,7 @@ const InventoryPage: React.FC = () => {
 
             if (error) {
                 if (error.message.includes('foreign key constraint')) {
-                    alert("No se puede eliminar este ítem porque está siendo usado en una receta o producto.");
+                    showAlert("No se puede eliminar", "Este ítem está siendo usado en una receta o producto.", "warning");
                 } else {
                     throw error;
                 }
@@ -276,7 +422,7 @@ const InventoryPage: React.FC = () => {
                 setShowDeleteConfirm(null);
             }
         } catch (error: any) {
-            alert("Error al eliminar: " + error.message);
+            showAlert("Error", "Error al eliminar: " + error.message, "error");
         }
     };
 
@@ -286,8 +432,31 @@ const InventoryPage: React.FC = () => {
     };
 
     return (
-        <div className="bg-gradient-to-br from-indigo-50 to-white dark:from-background-dark dark:to-neutral-dark min-h-screen text-neutral-dark dark:text-white font-display flex flex-col">
+        <div className="bg-gradient-to-br from-indigo-50 to-white dark:from-background-dark dark:to-neutral-dark min-h-screen text-neutral-dark dark:text-white font-display flex flex-col transition-colors duration-300">
             <HeaderSimple />
+            {isSubmitting && <LiquidLoader />}
+
+            {/* Generic Alert Modal */}
+            <LiquidModal
+                isOpen={alertModal.isOpen}
+                title={alertModal.title}
+                message={alertModal.message}
+                type={alertModal.type}
+                onClose={() => setAlertModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={closeAlert}
+            />
+
+            {/* Delete Confirm Modal (Replaced with LiquidModal) */}
+            <LiquidModal
+                isOpen={!!showDeleteConfirm}
+                title="¿Confirmar eliminación?"
+                message={showDeleteConfirm ? `Estás a punto de eliminar "${showDeleteConfirm.name}". Esta acción no se puede deshacer.` : ''}
+                type="error"
+                confirmText="Eliminar"
+                showCancel
+                onClose={() => setShowDeleteConfirm(null)}
+                onConfirm={handleDelete}
+            />
             <main className="flex-1 w-full max-w-7xl mx-auto px-4 md:px-8 py-8">
 
                 {/* BOTÓN REGRESAR PERSISTENTE */}
@@ -304,38 +473,38 @@ const InventoryPage: React.FC = () => {
                 </div>
 
                 {/* Header Section */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div>
-                        <h2 className="text-3xl font-bold text-neutral-dark dark:text-white tracking-tight">Mi Inventario</h2>
-                        <p className="text-neutral-gray dark:text-gray-400 mt-1">Gestiona tus productos terminados, recetas base e insumos.</p>
+                        <h2 className="text-2xl md:text-3xl font-bold text-neutral-dark dark:text-white tracking-tight">Mi Inventario</h2>
+                        <p className="text-sm md:text-base text-neutral-gray dark:text-gray-400 mt-1">Gestiona tus productos terminados, recetas base e insumos.</p>
                     </div>
                     {filterType !== 'INSUMO' && (
-                        <button onClick={handleNewProject} className="bg-secondary hover:bg-deep-purple text-white px-6 py-3 rounded-xl shadow-lg shadow-secondary/20 flex items-center gap-2 transition-all active:scale-95 font-medium">
-                            <span className="material-symbols-outlined">add</span>
+                        <button onClick={handleNewProject} className="bg-secondary hover:bg-deep-purple text-white px-5 py-3 md:px-6 md:py-3 rounded-xl shadow-lg shadow-secondary/20 flex items-center justify-center gap-2 transition-all active:scale-95 font-medium w-full md:w-auto text-sm md:text-base">
+                            <span className="material-symbols-outlined text-[20px]">add</span>
                             Nuevo Producto
                         </button>
                     )}
                 </div>
 
-                {/* Tabs */}
-                <div className="flex gap-6 border-b border-gray-200 dark:border-gray-800 mb-8 overflow-x-auto">
+                {/* Tabs - Scrollable on mobile */}
+                <div className="flex gap-4 md:gap-6 border-b border-gray-200 dark:border-gray-800 mb-6 overflow-x-auto pb-1 no-scrollbar">
                     <button
                         onClick={() => setFilterType('PRODUCTO')}
-                        className={`pb-3 px-1 text-sm font-bold tracking-wide transition-colors relative whitespace-nowrap ${filterType === 'PRODUCTO' ? 'text-secondary dark:text-white' : 'text-gray-400 hover:text-gray-600'}`}
+                        className={`pb-3 px-1 text-xs md:text-sm font-bold tracking-wide transition-colors relative whitespace-nowrap shrink-0 ${filterType === 'PRODUCTO' ? 'text-secondary dark:text-white' : 'text-gray-400 hover:text-gray-600'}`}
                     >
                         MENÚS Y PRODUCTOS
                         {filterType === 'PRODUCTO' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-secondary"></span>}
                     </button>
                     <button
                         onClick={() => setFilterType('RECETA')}
-                        className={`pb-3 px-1 text-sm font-bold tracking-wide transition-colors relative whitespace-nowrap ${filterType === 'RECETA' ? 'text-secondary dark:text-white' : 'text-gray-400 hover:text-gray-600'}`}
+                        className={`pb-3 px-1 text-xs md:text-sm font-bold tracking-wide transition-colors relative whitespace-nowrap shrink-0 ${filterType === 'RECETA' ? 'text-secondary dark:text-white' : 'text-gray-400 hover:text-gray-600'}`}
                     >
                         RECETAS BASE
                         {filterType === 'RECETA' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-secondary"></span>}
                     </button>
                     <button
                         onClick={() => setFilterType('INSUMO')}
-                        className={`pb-3 px-1 text-sm font-bold tracking-wide transition-colors relative whitespace-nowrap ${filterType === 'INSUMO' ? 'text-secondary dark:text-white' : 'text-gray-400 hover:text-gray-600'}`}
+                        className={`pb-3 px-1 text-xs md:text-sm font-bold tracking-wide transition-colors relative whitespace-nowrap shrink-0 ${filterType === 'INSUMO' ? 'text-secondary dark:text-white' : 'text-gray-400 hover:text-gray-600'}`}
                     >
                         MIS INSUMOS
                         {filterType === 'INSUMO' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-secondary"></span>}
@@ -344,20 +513,20 @@ const InventoryPage: React.FC = () => {
 
                 {/* CONTENIDO */}
                 {filterType === 'INSUMO' ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in-up">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in-up">
                         {/* FORMULARIO DE CREACIÓN DE INSUMO */}
                         <div className="lg:col-span-1">
-                            <div className="bg-white dark:bg-surface-dark p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 sticky top-4">
-                                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-secondary">add_circle</span>
+                            <div className="bg-white dark:bg-surface-dark p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 sticky top-4">
+                                <h3 className="text-base md:text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-secondary text-[20px]">add_circle</span>
                                     Nuevo Insumo
                                 </h3>
-                                <form onSubmit={handleSaveIngredient} className="flex flex-col gap-4">
+                                <form onSubmit={handleSaveIngredient} className="flex flex-col gap-3">
                                     <div>
                                         <label className="section-label">Nombre del Insumo</label>
                                         <input
                                             placeholder="Ej: Harina Trigo, Fresas..."
-                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm focus:border-secondary outline-none"
+                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-sm focus:border-secondary outline-none transition-all placeholder:text-gray-400"
                                             value={newIng.name}
                                             onChange={e => setNewIng({ ...newIng, name: e.target.value })}
                                         />
@@ -365,23 +534,23 @@ const InventoryPage: React.FC = () => {
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="section-label">Precio Compra</label>
-                                            <div className="relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                                            <div className="relative group-focus-within:text-secondary">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold group-focus-within:text-secondary transition-colors">$</span>
                                                 <input
                                                     type="number"
                                                     placeholder="0"
-                                                    className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-lg p-3 pl-6 text-sm focus:border-secondary outline-none"
+                                                    className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-3 pl-6 text-sm focus:border-secondary outline-none transition-all placeholder:text-gray-400"
                                                     value={newIng.price}
                                                     onChange={e => setNewIng({ ...newIng, price: e.target.value })}
                                                 />
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="section-label">Cantidad Paquete</label>
+                                            <label className="section-label">Cant. Paquete</label>
                                             <input
                                                 type="number"
                                                 placeholder="0"
-                                                className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm focus:border-secondary outline-none"
+                                                className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-sm focus:border-secondary outline-none transition-all placeholder:text-gray-400"
                                                 value={newIng.qty}
                                                 onChange={e => setNewIng({ ...newIng, qty: e.target.value })}
                                             />
@@ -389,13 +558,13 @@ const InventoryPage: React.FC = () => {
                                     </div>
                                     <div>
                                         <label className="section-label">Unidad de Medida</label>
-                                        <div className="flex gap-2 bg-gray-50 dark:bg-background-dark p-1 rounded-lg border border-gray-200 dark:border-gray-700">
+                                        <div className="flex gap-1 bg-gray-50 dark:bg-background-dark p-1 rounded-xl border border-gray-200 dark:border-gray-700 overflow-x-auto">
                                             {['Und', 'Gr', 'Ml', 'Kg', 'Lt'].map(u => (
                                                 <button
                                                     key={u}
                                                     type="button"
                                                     onClick={() => setNewIng({ ...newIng, unit: u })}
-                                                    className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${newIng.unit === u ? 'bg-white dark:bg-gray-700 shadow-sm text-secondary' : 'text-gray-400 hover:text-gray-600'}`}
+                                                    className={`flex-1 py-2 px-1 rounded-lg text-[10px] md:text-xs font-bold transition-all whitespace-nowrap ${newIng.unit === u ? 'bg-white dark:bg-gray-700 shadow-sm text-secondary ring-1 ring-black/5' : 'text-gray-400 hover:text-gray-600'}`}
                                                 >
                                                     {u}
                                                 </button>
@@ -405,9 +574,9 @@ const InventoryPage: React.FC = () => {
                                     <button
                                         type="submit"
                                         disabled={isSubmitting}
-                                        className="mt-2 w-full bg-secondary hover:bg-secondary-dark text-white font-bold py-3 rounded-xl shadow-lg shadow-secondary/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                        className="mt-2 w-full bg-secondary hover:bg-secondary-dark text-white font-bold py-3.5 rounded-xl shadow-lg shadow-secondary/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                                     >
-                                        {isSubmitting ? <span className="material-symbols-outlined animate-spin text-sm">refresh</span> : 'GUARDAR INSUMO'}
+                                        {isSubmitting ? <span className="material-symbols-outlined animate-spin text-sm">refresh</span> : 'GUARDAR AHORA'}
                                     </button>
                                 </form>
                             </div>
@@ -421,49 +590,41 @@ const InventoryPage: React.FC = () => {
                                     <p className="text-xs text-gray-400 mt-2">Cargando...</p>
                                 </div>
                             ) : ingredients.length > 0 ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="flex flex-col gap-4">
                                     {ingredients.map(ing => (
-                                        <div key={ing.id} className="bg-white dark:bg-surface-dark p-4 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm hover:border-secondary/30 transition-colors group relative">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="size-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-500 flex items-center justify-center">
-                                                        <span className="material-symbols-outlined text-sm">grocery</span>
+                                        <div key={ing.id} className="group bg-white dark:bg-surface-dark rounded-2xl md:rounded-xl shadow-sm border border-gray-100 dark:border-white/5 overflow-hidden hover:shadow-md hover:border-secondary/20 transition-all duration-300">
+                                            <div className="flex items-center justify-between p-4 px-6">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="size-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500 flex items-center justify-center">
+                                                        <span className="material-symbols-outlined">grocery</span>
                                                     </div>
-                                                    <h4 className="font-bold text-slate-800 dark:text-white leading-tight">{ing.name}</h4>
+                                                    <div>
+                                                        <h4 className="font-bold text-slate-800 dark:text-white text-sm">{ing.name}</h4>
+                                                        <p className="text-[10px] text-gray-400 font-bold uppercase">{ing.purchase_quantity} {ing.purchase_unit} (Paquete: {formatCurrency(ing.purchase_price)})</p>
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button
-                                                        onClick={() => setEditingItem(ing)}
-                                                        className="p-1 text-gray-400 hover:text-secondary rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[18px]">edit</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setShowDeleteConfirm({ id: ing.id, name: ing.name, type: 'INSUMO' })}
-                                                        className="p-1 text-gray-400 hover:text-red-500 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[18px]">delete</span>
-                                                    </button>
+                                                <div className="flex items-center gap-6">
+                                                    <div className="text-right hidden sm:block">
+                                                        <p className="text-[9px] text-gray-400 font-bold uppercase">Costo Unitario</p>
+                                                        <p className="font-black text-slate-700 dark:text-white text-base">
+                                                            {formatCurrency(ing.purchase_price / ing.purchase_quantity)} <span className="text-[10px] text-gray-400 font-normal">/ {ing.purchase_unit}</span>
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button
+                                                            onClick={() => setEditingItem(ing)}
+                                                            className="p-2 text-gray-400 hover:text-secondary rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[20px]">edit</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setShowDeleteConfirm({ id: ing.id, name: ing.name, type: 'INSUMO' })}
+                                                            className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[20px]">delete</span>
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
-
-                                            <div className="flex items-end justify-between mt-3 text-sm">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[10px] text-gray-400 font-bold uppercase">Precio Compra</span>
-                                                    <span className="font-semibold text-slate-700 dark:text-slate-300">{formatCurrency(ing.purchase_price)}</span>
-                                                </div>
-                                                <div className="h-6 w-px bg-gray-100 dark:bg-gray-800"></div>
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-[10px] text-gray-400 font-bold uppercase">Paquete de</span>
-                                                    <span className="font-semibold text-slate-700 dark:text-slate-300">{ing.purchase_quantity} {ing.purchase_unit}</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-3 pt-2 border-t border-gray-50 dark:border-gray-800 flex justify-between items-center">
-                                                <span className="text-[10px] text-gray-400">Costo Unitario Aprox:</span>
-                                                <span className="text-xs font-bold text-secondary">
-                                                    {formatCurrency(ing.purchase_price / ing.purchase_quantity)} / {ing.purchase_unit}
-                                                </span>
                                             </div>
                                         </div>
                                     ))}
@@ -785,41 +946,14 @@ const InventoryPage: React.FC = () => {
             </footer>
 
             {/* MODAL: CONFIGURAICON DE ELIMINACION */}
-            {showDeleteConfirm && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-surface-dark w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 transform transition-all scale-100 animate-fade-in-up">
-                        <div className="p-6 text-center">
-                            <div className="size-16 rounded-full bg-red-50 dark:bg-red-900/20 text-red-500 flex items-center justify-center mx-auto mb-4">
-                                <span className="material-symbols-outlined text-3xl">delete_forever</span>
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">¿Confirmar eliminación?</h3>
-                            <p className="text-gray-500 dark:text-gray-400 text-sm mb-6 px-4">
-                                Estás a punto de eliminar <strong>"{showDeleteConfirm.name}"</strong>. Esta acción no se puede deshacer.
-                            </p>
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setShowDeleteConfirm(null)}
-                                    className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-bold rounded-xl hover:bg-gray-200 transition-colors"
-                                >
-                                    CANCELAR
-                                </button>
-                                <button
-                                    onClick={handleDelete}
-                                    className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg shadow-red-500/20 transition-all active:scale-95"
-                                >
-                                    ELIMINAR
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* OLD DELETE CONFIRM MODAL REMOVED (Replaced by LiquidModal above) */}
 
-            {/* MODAL: EDICIÓN DE INSUMO */}
+            {/* MODAL: EDICIÓN DE INSUMO (Liquid Style) */}
             {editingItem && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-surface-dark w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 transform transition-all scale-100 animate-fade-in-up">
-                        <div className="p-6 text-center bg-gradient-to-r from-secondary to-primary relative overflow-hidden">
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-background-light/60 dark:bg-background-dark/80 backdrop-blur-xl transition-opacity" onClick={() => setEditingItem(null)}></div>
+                    <div className="relative bg-white/80 dark:bg-surface-dark/80 backdrop-blur-2xl w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-white/20 dark:border-white/10 transform transition-all scale-100 animate-fade-in-up">
+                        <div className="p-6 text-center bg-gradient-to-r from-secondary/90 to-primary/90 relative overflow-hidden">
                             <div className="absolute inset-0 bg-white/10 opacity-50 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
                             <h3 className="text-2xl font-black text-white relative z-10 mb-1">Editar Insumo</h3>
                             <button onClick={() => setEditingItem(null)} className="absolute top-4 right-4 text-white/80 hover:text-white focus:outline-none">
@@ -885,22 +1019,23 @@ const InventoryPage: React.FC = () => {
                 </div>
             )}
 
-            {/* MODAL: EDICIÓN DE MENÚ / PRODUCTO */}
+            {/* MODAL: EDICIÓN DE MENÚ / PRODUCTO (Liquid Style) */}
             {editingItemDish && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-surface-dark w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 transform transition-all scale-100 animate-fade-in-up">
-                        <div className={`p-6 text-center relative overflow-hidden ${editingItemDish.sale_price > 0 ? 'bg-gradient-to-r from-blue-600 to-indigo-600' : 'bg-gradient-to-r from-orange-500 to-amber-500'}`}>
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="absolute inset-0 bg-background-light/60 dark:bg-background-dark/80 backdrop-blur-xl transition-opacity" onClick={() => setEditingItemDish(null)}></div>
+                    <div className="relative bg-white/80 dark:bg-surface-dark/80 backdrop-blur-2xl w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-white/20 dark:border-white/10 transform transition-all scale-100 animate-fade-in-up my-auto">
+                        <div className={`p-6 text-center relative overflow-hidden ${editingItemDish.sale_price > 0 ? 'bg-gradient-to-r from-blue-600/90 to-indigo-600/90' : 'bg-gradient-to-r from-orange-500/90 to-amber-500/90'}`}>
                             <div className="absolute inset-0 bg-white/10 opacity-50 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
                             <h3 className="text-2xl font-black text-white relative z-10 mb-1">Editar {editingItemDish.sale_price > 0 ? 'Producto' : 'Receta'}</h3>
                             <button onClick={() => setEditingItemDish(null)} className="absolute top-4 right-4 text-white/80 hover:text-white focus:outline-none">
                                 <span className="material-symbols-outlined">close</span>
                             </button>
                         </div>
-                        <form onSubmit={handleUpdateDish} className="p-8 flex flex-col gap-6">
+                        <form onSubmit={handleUpdateDish} className="p-6 md:p-8 flex flex-col gap-5 max-h-[80vh] overflow-y-auto">
                             <div>
                                 <label className="section-label">Nombre del Menú</label>
                                 <input
-                                    className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 px-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
+                                    className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
                                     value={editingItemDish.name}
                                     onChange={e => setEditingItemDish({ ...editingItemDish, name: e.target.value })}
                                 />
@@ -912,12 +1047,12 @@ const InventoryPage: React.FC = () => {
                                     <div className="relative">
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
                                         <input
-                                            type="number"
-                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 pl-6 pr-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
-                                            value={editingItemDish.total_cost}
-                                            onChange={e => setEditingItemDish({ ...editingItemDish, total_cost: e.target.value })}
+                                            readOnly
+                                            className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl py-3 pl-6 pr-4 text-slate-500 dark:text-gray-400 font-bold outline-none cursor-not-allowed"
+                                            value={editingDishIngredients.reduce((acc, i) => acc + (parseFloat(i.cost_snapshot) || 0), 0).toFixed(2)}
                                         />
                                     </div>
+                                    <p className="text-[10px] text-gray-400 mt-1">Calculado automáticamente</p>
                                 </div>
                                 {editingItemDish.sale_price > 0 && (
                                     <div>
@@ -926,7 +1061,7 @@ const InventoryPage: React.FC = () => {
                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
                                             <input
                                                 type="number"
-                                                className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 pl-6 pr-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
+                                                className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 pl-6 pr-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
                                                 value={editingItemDish.sale_price}
                                                 onChange={e => setEditingItemDish({ ...editingItemDish, sale_price: e.target.value })}
                                             />
@@ -935,13 +1070,98 @@ const InventoryPage: React.FC = () => {
                                 )}
                             </div>
 
+                            {/* SECCIÓN DE INGREDIENTES EN EDICIÓN */}
+                            <div className="bg-gray-50 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
+                                <label className="section-label mb-3 block">Insumos Relacionados</label>
+
+                                {/* Buscador dentro del Modal */}
+                                <div className="relative mb-4">
+                                    <input
+                                        className="w-full bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-lg py-2.5 px-3 pl-9 text-xs focus:border-secondary outline-none"
+                                        placeholder="Añadir más insumos..."
+                                        value={editSearchQuery}
+                                        onChange={e => setEditSearchQuery(e.target.value)}
+                                    />
+                                    <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-lg">search</span>
+
+                                    {editSearchResults.length > 0 && (
+                                        <div className="absolute top-full left-0 w-full mt-1 bg-white dark:bg-surface-dark border border-gray-100 dark:border-gray-800 rounded-lg shadow-xl z-[210] overflow-hidden">
+                                            {editSearchResults.map(ing => (
+                                                <button
+                                                    key={ing.id}
+                                                    type="button"
+                                                    onClick={() => { setEditSelectedIng(ing); setEditSearchQuery(ing.name); setEditSearchResults([]); }}
+                                                    className="w-full text-left px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-[11px] font-bold border-b border-gray-50 dark:border-gray-800 last:border-0"
+                                                >
+                                                    {ing.name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {editSelectedIng && (
+                                    <div className="flex gap-2 mb-4 animate-fade-in items-end">
+                                        <div className="flex-1">
+                                            <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 block">¿PARA CUÁNTO ALCANZA? ({editSelectedIng.purchase_unit})</label>
+                                            <input
+                                                type="number"
+                                                className="w-full bg-white dark:bg-background-dark border border-secondary/30 rounded-lg p-2 text-xs outline-none"
+                                                value={editUseQty}
+                                                onChange={e => setEditUseQty(e.target.value)}
+                                                placeholder="0"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleAddToEditing}
+                                            className="bg-secondary text-white p-2 rounded-lg hover:bg-secondary-dark transition-all"
+                                        >
+                                            <span className="material-symbols-outlined text-xl">add</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditSelectedIng(null)}
+                                            className="bg-gray-200 dark:bg-gray-700 text-gray-500 p-2 rounded-lg"
+                                        >
+                                            <span className="material-symbols-outlined text-xl">close</span>
+                                        </button>
+                                    </div>
+                                )}
+
+                                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                    {editingDishIngredients.length > 0 ? (
+                                        editingDishIngredients.map((item, idx) => (
+                                            <div key={item.id || idx} className="flex justify-between items-center bg-white dark:bg-background-dark p-2 rounded-lg border border-gray-100 dark:border-gray-800 shadow-sm">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[11px] font-bold text-slate-700 dark:text-gray-200">{item.name}</span>
+                                                    <span className="text-[9px] text-gray-400">{item.used_quantity} {item.used_unit}</span>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-xs font-black text-slate-800 dark:text-white">{formatCurrency(item.cost_snapshot)}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveFromEditing(item.id || item.name)}
+                                                        className="text-gray-300 hover:text-red-500 transition-colors"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">delete</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-center py-4 text-[11px] text-gray-400 italic">No hay insumos cargados.</p>
+                                    )}
+                                </div>
+                            </div>
+
                             {editingItemDish.sale_price > 0 && (
                                 <div>
                                     <label className="section-label">Margen de Ganancia (%)</label>
                                     <div className="relative">
                                         <input
                                             type="number"
-                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 px-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
+                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
                                             value={editingItemDish.profit_margin}
                                             onChange={e => setEditingItemDish({ ...editingItemDish, profit_margin: e.target.value })}
                                         />
@@ -955,7 +1175,7 @@ const InventoryPage: React.FC = () => {
                                 disabled={isSubmitting}
                                 className={`w-full font-bold text-white py-4 rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${editingItemDish.sale_price > 0 ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20' : 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/20'}`}
                             >
-                                {isSubmitting ? <span className="material-symbols-outlined animate-spin">refresh</span> : 'ACTUALIZAR MENÚ'}
+                                {isSubmitting ? <span className="material-symbols-outlined animate-spin">refresh</span> : 'ACTUALIZAR DATOS'}
                             </button>
                         </form>
                     </div>

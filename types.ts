@@ -9,6 +9,7 @@ export interface CostItem {
     name: string;
     type: ItemType;
     cost: number;
+    db_id?: string; // Supabase ID for ingredients
     // Details for editing later
     boughtQty?: number;
     boughtUnit?: string;
@@ -23,6 +24,8 @@ export interface ProjectState {
     factorQ: boolean; // Safety buffer
     factorQPercentage: number;
     profitMargin: number;
+    laborCost: number; // Costo total de mano de obra
+    laborTimeMinutes: number; // Tiempo en minutos
 }
 
 export interface InventoryItem {

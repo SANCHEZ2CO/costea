@@ -76,16 +76,21 @@ const LoginPage: React.FC = () => {
             <div className="relative z-10 w-full max-w-5xl bg-white/10 dark:bg-black/20 backdrop-blur-2xl border border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] rounded-3xl overflow-hidden flex flex-col md:flex-row">
 
                 {/* Form Section (Left) - Liquid Glass Content */}
-                <div className="w-full md:w-6/12 p-8 md:p-12 flex flex-col justify-center relative">
+                <div className="w-full md:w-6/12 p-6 md:p-12 flex flex-col justify-center relative">
                     {/* Inner subtle glow for the form area */}
                     <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
 
                     <div className="relative z-10">
-                        <div className="text-left mb-8">
-                            <h2 className="text-4xl font-black text-white mb-2 tracking-tight drop-shadow-sm">
+                        {/* Logo subtle placement */}
+                        <div className="mb-8 p-1 inline-flex rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 shadow-sm">
+                            <img src="/images/logos/sanchez2-logo.png" alt="Sanchez2 Logo" className="h-8 md:h-10 opacity-90" />
+                        </div>
+
+                        <div className="text-left mb-6">
+                            <h2 className="text-3xl md:text-4xl font-black text-white mb-2 tracking-tight drop-shadow-sm">
                                 {isLoginMode ? 'Bienvenido' : 'Únete a nosotros'}
                             </h2>
-                            <p className="text-blue-100/80 font-light text-lg">
+                            <p className="text-blue-100/80 font-light text-base md:text-lg">
                                 {isLoginMode
                                     ? 'Accede a tu panel de control.'
                                     : 'Comienza tu viaje de optimización hoy.'}

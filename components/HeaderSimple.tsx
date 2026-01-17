@@ -12,9 +12,16 @@ const HeaderSimple: React.FC<HeaderProps> = ({ showProfile = true }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    const handleLogout = async () => {
-        await signOut();
-        navigate('/login');
+    const handleLogout = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsMenuOpen(false);
+        try {
+            await signOut();
+            navigate('/login');
+        } catch (error) {
+            console.error("Error signing out:", error);
+        }
     };
 
     // Close menu when clicking outside
@@ -81,6 +88,7 @@ const HeaderSimple: React.FC<HeaderProps> = ({ showProfile = true }) => {
                                     Ajustes
                                 </Link>
                                 <button
+                                    type="button"
                                     onClick={handleLogout}
                                     className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
                                 >

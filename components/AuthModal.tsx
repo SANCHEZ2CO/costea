@@ -31,25 +31,41 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white dark:bg-surface-dark w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 transform transition-all scale-100">
-                <div className="p-6 text-center bg-gradient-to-r from-secondary to-primary relative overflow-hidden">
-                    <div className="absolute inset-0 bg-white/10 opacity-50 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-                    <h3 className="text-2xl font-black text-white relative z-10 mb-1">¡Bienvenido!</h3>
-                    <p className="text-indigo-100 text-sm relative z-10">Ingresa tu correo para guardar tus recetas</p>
-                    <button onClick={onClose} className="absolute top-4 right-4 text-white/80 hover:text-white">
-                        <span className="material-symbols-outlined">close</span>
-                    </button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div
+                className="absolute inset-0 bg-secondary/80 backdrop-blur-xl transition-opacity animate-[fadeIn_0.3s_ease-out]"
+                onClick={onClose}
+            ></div>
+
+            {/* Modal Content - Liquid Glass Style */}
+            <div className="relative w-full max-w-md bg-white/10 backdrop-blur-3xl rounded-3xl p-0 border border-white/20 shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] animate-[scaleIn_0.3s_cubic-bezier(0.16,1,0.3,1)] overflow-hidden">
+
+                {/* Decorative Elements */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/30 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/30 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2 pointer-events-none"></div>
+
+                <button onClick={onClose} className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-20">
+                    <span className="material-symbols-outlined">close</span>
+                </button>
+
+                {/* Header Section */}
+                <div className="p-8 pb-0 text-center relative z-10">
+                    <div className="mb-4 inline-flex p-4 rounded-full border-2 border-white/20 bg-white/10 shadow-inner backdrop-blur-md">
+                        <span className="material-symbols-outlined text-4xl text-white font-bold drop-shadow-md">magic_button</span>
+                    </div>
+                    <h3 className="text-3xl font-black text-white mb-2 drop-shadow-sm">¡Bienvenido!</h3>
+                    <p className="text-indigo-100/90 text-sm font-medium">Ingresa tu correo para guardar tus recetas y acceder desde cualquier lugar.</p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-8 flex flex-col gap-6">
-                    <div>
-                        <label className="section-label">Tu Correo Electrónico</label>
-                        <div className="relative group-focus-within:ring-2 ring-primary/20 rounded-xl transition-all">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined">mail</span>
+                <form onSubmit={handleSubmit} className="p-8 pt-6 flex flex-col gap-6 relative z-10">
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-indigo-100 uppercase tracking-wider ml-1">Tu Correo Electrónico</label>
+                        <div className="relative group">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-300 material-symbols-outlined group-focus-within:text-white transition-colors">mail</span>
                             <input
                                 type="email"
-                                className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 pl-12 pr-4 text-slate-800 dark:text-white font-medium focus:border-primary outline-none transition-all placeholder:text-gray-400"
+                                className="w-full bg-white/10 border-2 border-indigo-300/30 focus:border-white/50 rounded-2xl py-4 pl-12 pr-4 text-white font-bold placeholder:text-indigo-200/50 outline-none transition-all shadow-inner backdrop-blur-sm"
                                 placeholder="ejemplo@costea.app"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
@@ -60,27 +76,31 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
                     <button
                         type="submit"
-                        disabled={isSubmitting}
-                        className="w-full bg-secondary hover:bg-secondary-dark text-white font-bold py-4 rounded-xl shadow-lg shadow-secondary/30 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={isSubmitting || !email}
+                        className="w-full bg-white text-secondary hover:bg-indigo-50 font-black py-4 rounded-2xl shadow-lg shadow-black/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group relative overflow-hidden"
                     >
                         {isSubmitting ? (
                             <>
-                                <span className="material-symbols-outlined animate-spin">refresh</span>
-                                Enviando enlace...
+                                <span className="material-symbols-outlined animate-spin text-secondary">refresh</span>
+                                <span className="text-secondary">Enviando enlace...</span>
                             </>
                         ) : (
                             <>
-                                <span className="material-symbols-outlined">magic_button</span>
-                                ENVIAR ENLACE MÁGICO
+                                <span className="material-symbols-outlined group-hover:-translate-y-0.5 transition-transform text-secondary">send</span>
+                                <span className="text-secondary">ENVIAR ENLACE MÁGICO</span>
                             </>
                         )}
                     </button>
 
-                    <p className="text-xs text-center text-gray-400">
+                    <p className="text-xs text-center text-indigo-200/60 leading-relaxed">
                         Te enviaremos un link de acceso seguro a tu correo. <br />Sin contraseñas que recordar.
                     </p>
                 </form>
             </div>
+            <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+      `}</style>
         </div>
     );
 };

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import HeaderSimple from '../components/HeaderSimple';
 import { useApp } from '../context/AppContext';
+import LiquidModal from '../components/LiquidModal';
 
 const SettingsPage: React.FC = () => {
     const navigate = useNavigate();
@@ -12,6 +13,21 @@ const SettingsPage: React.FC = () => {
     const [localOrg, setLocalOrg] = useState(organization);
     const [localSettings, setLocalSettings] = useState(settings);
     const [isDirty, setIsDirty] = useState(false);
+
+    // Modal State
+    const [modal, setModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type: 'success' | 'error' | 'warning' | 'info';
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        type: 'info'
+    });
+
+    const closeModal = () => setModal(prev => ({ ...prev, isOpen: false }));
 
     // Sync from context if it changes externally (optional, but good practice)
     useEffect(() => {
@@ -49,13 +65,27 @@ const SettingsPage: React.FC = () => {
         updateOrganization(localOrg);
         updateSettings(localSettings);
         setIsDirty(false);
-        // Could show a toast here
-        alert('Configuración guardada exitosamente');
+        setModal({
+            isOpen: true,
+            title: "Cambios Guardados",
+            message: "La configuración ha sido actualizada correctamente.",
+            type: "success"
+        });
     };
 
     return (
         <div className="bg-gradient-to-br from-white to-indigo-50 dark:from-background-dark dark:to-neutral-dark min-h-screen text-neutral-dark dark:text-white font-display overflow-hidden flex flex-col">
             <HeaderSimple showProfile={true} />
+
+            <LiquidModal
+                isOpen={modal.isOpen}
+                title={modal.title}
+                message={modal.message}
+                type={modal.type}
+                onClose={closeModal}
+                onConfirm={closeModal}
+            />
+
             <main className="flex-1 flex flex-col items-center justify-start relative w-full px-4 overflow-y-auto overflow-x-hidden py-4">
                 <div className="absolute top-1/4 left-0 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-secondary/5 rounded-full blur-3xl -z-10 pointer-events-none"></div>
                 <div className="absolute bottom-0 right-0 translate-x-1/3 translate-y-1/3 w-[500px] h-[500px] bg-primary/10 rounded-full blur-3xl -z-10 pointer-events-none"></div>

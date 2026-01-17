@@ -18,6 +18,7 @@ interface AppContextType {
     removeItem: (id: string) => void;
     toggleFactorQ: () => void;
     updateProfitMargin: (margin: number) => void;
+    updateLaborCost: (cost: number, minutes: number) => void;
     saveToInventory: (item: InventoryItem) => void;
     resetProject: () => void;
     // Auth
@@ -34,7 +35,9 @@ const defaultState: ProjectState = {
     items: [],
     factorQ: true,
     factorQPercentage: 5,
-    profitMargin: 35
+    profitMargin: 35,
+    laborCost: 0,
+    laborTimeMinutes: 0
 };
 
 const defaultSettings: AppSettings = {
@@ -101,8 +104,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const signOut = async () => {
-        await supabase.auth.signOut();
-        setInventory([]); // Clear local inventory on logout
+        try {
+            await supabase.auth.signOut();
+        } catch (error) {
+            console.error("Error signing out:", error);
+        } finally {
+            // Force clean state immediately to trigger UI updates
+            setSession(null);
+            setUser(null);
+            setInventory([]);
+            setLoading(false);
+        }
     };
 
     const updateSettings = (newSettings: Partial<AppSettings>) => {
@@ -140,6 +152,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setProject(prev => ({ ...prev, profitMargin: margin }));
     };
 
+    const updateLaborCost = (cost: number, minutes: number) => {
+        setProject(prev => ({ ...prev, laborCost: cost, laborTimeMinutes: minutes }));
+    };
+
     const saveToInventory = (item: InventoryItem) => {
         setInventory(prev => [item, ...prev]);
         // TODO: Persist to Supabase in next steps
@@ -163,6 +179,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             removeItem,
             toggleFactorQ,
             updateProfitMargin,
+            updateLaborCost,
             saveToInventory,
             resetProject,
             user,
