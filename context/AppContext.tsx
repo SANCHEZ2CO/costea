@@ -92,14 +92,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const signUpWithEmail = async (email: string, password: string, fullName: string) => {
+        // Determine the redirect URL based on environment
+        const redirectUrl = window.location.hostname === 'costea.sanchez2.co'
+            ? 'https://costea.sanchez2.co'
+            : 'http://localhost:5173';
+
         return await supabase.auth.signUp({
             email,
             password,
             options: {
+                emailRedirectTo: redirectUrl,
                 data: {
                     full_name: fullName,
                 },
             },
+        });
+    };
+
+    const signInWithGoogle = async () => {
+        const redirectUrl = window.location.hostname === 'costea.sanchez2.co'
+            ? 'https://costea.sanchez2.co/home'
+            : 'http://localhost:5173/home';
+
+        return await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: redirectUrl
+            }
         });
     };
 
@@ -187,6 +206,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             loading,
             signInWithEmail,
             signUpWithEmail,
+            signInWithGoogle,
             signOut
         }}>
             {children}

@@ -8,4 +8,21 @@ if (!supabaseUrl || !supabaseAnonKey) {
     console.warn('Faltan las variables de entorno de Supabase. La conexión fallará.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Determine the redirect URL based on environment
+export const getAuthRedirectUrl = () => {
+    // Check if we're in production
+    if (window.location.hostname === 'costea.sanchez2.co') {
+        return 'https://costea.sanchez2.co';
+    }
+    // Default to localhost for development
+    return 'http://localhost:5173';
+};
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+        flowType: 'pkce'
+    }
+});

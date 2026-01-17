@@ -858,8 +858,8 @@ const InventoryPage: React.FC = () => {
                             <span className="material-symbols-outlined animate-spin text-4xl text-gray-300">progress_activity</span>
                         </div>
                     ) : displayItems.length > 0 ? (
-                        <div className="flex flex-col gap-4 animate-fade-in-up">
-                            {/* Header del Listado (Desktop) */}
+                        <div className="flex flex-col gap-3 md:gap-4 animate-fade-in-up">
+                            {/* Header del Listado (Desktop only) */}
                             <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-gray-100/50 dark:bg-gray-800/30 rounded-xl text-[10px] font-bold text-gray-400 uppercase tracking-widest border border-transparent">
                                 <div className="col-span-1">Tipo</div>
                                 <div className="col-span-4">Nombre del Producto / Receta</div>
@@ -871,57 +871,105 @@ const InventoryPage: React.FC = () => {
 
                             {displayItems.map((item) => (
                                 <div key={item.id} className="group bg-white dark:bg-surface-dark rounded-2xl md:rounded-xl shadow-sm border border-gray-100 dark:border-white/5 overflow-hidden hover:shadow-md hover:border-secondary/20 transition-all duration-300">
-                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center p-4 md:p-3">
 
+                                    {/* Mobile Layout */}
+                                    <div className="md:hidden">
+                                        {/* Header Section */}
+                                        <div className="flex items-center gap-3 p-4 pb-3 border-b border-gray-50 dark:border-gray-800/50">
+                                            <div className="size-12 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 text-blue-500 shrink-0 shadow-sm">
+                                                <span className="material-symbols-outlined text-[24px]">restaurant_menu</span>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-bold text-slate-800 dark:text-white text-base truncate leading-tight" title={item.name}>{item.name}</h4>
+                                                <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/30">
+                                                    Producto
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Data Grid */}
+                                        <div className="grid grid-cols-3 gap-3 p-4 pb-3">
+                                            <div className="flex flex-col items-center text-center">
+                                                <span className="text-[10px] text-gray-400 font-bold uppercase mb-1.5">Costo</span>
+                                                <span className="font-bold text-slate-700 dark:text-gray-300 text-sm leading-none">{formatCurrency(item.totalCost)}</span>
+                                            </div>
+                                            <div className="flex flex-col items-center text-center border-x border-gray-100 dark:border-gray-800">
+                                                <span className="text-[10px] text-gray-400 font-bold uppercase mb-1.5">Venta</span>
+                                                <span className="font-black text-secondary text-base leading-none">{formatCurrency(item.salePrice)}</span>
+                                            </div>
+                                            <div className="flex flex-col items-center text-center">
+                                                <span className="text-[10px] text-gray-400 font-bold uppercase mb-1.5">Margen</span>
+                                                <span className="px-2 py-1 rounded-full bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-[11px] font-black border border-green-100 dark:border-green-800/30 leading-none">
+                                                    {item.profitMargin}%
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Actions */}
+                                        <div className="flex gap-2 p-3 pt-0">
+                                            <button
+                                                onClick={() => {
+                                                    const fullItem = dishes.find(d => d.id === item.id);
+                                                    setEditingItemDish(fullItem);
+                                                }}
+                                                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-gray-50 dark:bg-gray-800/50 text-slate-600 dark:text-slate-400 hover:text-secondary dark:hover:text-secondary rounded-xl transition-all border border-gray-100 dark:border-gray-700/50 active:scale-95">
+                                                <span className="material-symbols-outlined text-[18px]">edit</span>
+                                                <span className="text-xs font-bold">Editar</span>
+                                            </button>
+                                            <button
+                                                onClick={() => setShowDeleteConfirm({ id: item.id, name: item.name, type: 'PRODUCTO' })}
+                                                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-50 dark:bg-red-900/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-all border border-red-100/50 dark:border-red-900/30 active:scale-95">
+                                                <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                <span className="text-xs font-bold">Eliminar</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Desktop Layout */}
+                                    <div className="hidden md:grid grid-cols-12 gap-4 items-center p-3">
                                         {/* TIPO & ICONO */}
-                                        <div className="col-span-1 flex items-center justify-between md:justify-center">
+                                        <div className="col-span-1 flex items-center justify-center">
                                             <div className="size-10 rounded-xl flex items-center justify-center bg-blue-50 dark:bg-blue-900/20 text-blue-500">
                                                 <span className="material-symbols-outlined text-[22px]">restaurant_menu</span>
                                             </div>
-                                            <div className="md:hidden px-2 py-1 rounded-md text-[9px] font-bold uppercase border bg-blue-50 text-blue-600 border-blue-100">PRODUCTO</div>
                                         </div>
 
                                         {/* NOMBRE */}
                                         <div className="col-span-4">
-                                            <h4 className="font-bold text-slate-800 dark:text-white text-base md:text-sm truncate" title={item.name}>{item.name}</h4>
-                                            <p className="text-[10px] text-gray-400 font-medium hidden md:block uppercase tracking-tight">PRODUCTO TERMINADO</p>
+                                            <h4 className="font-bold text-slate-800 dark:text-white text-sm truncate" title={item.name}>{item.name}</h4>
+                                            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">PRODUCTO TERMINADO</p>
                                         </div>
 
                                         {/* COSTO */}
-                                        <div className="col-span-2 flex md:flex-col justify-between md:items-center">
-                                            <span className="md:hidden text-[10px] text-gray-400 font-bold uppercase">Costo</span>
+                                        <div className="col-span-2 flex flex-col items-center">
                                             <span className="font-bold text-slate-700 dark:text-gray-300 text-sm">{formatCurrency(item.totalCost)}</span>
                                         </div>
 
                                         {/* PRECIO VENTA */}
-                                        <div className="col-span-2 flex md:flex-col justify-between md:items-center">
-                                            <span className="md:hidden text-[10px] text-gray-400 font-bold uppercase">Venta</span>
-                                            <span className="font-black text-secondary text-base md:text-sm">{formatCurrency(item.salePrice)}</span>
+                                        <div className="col-span-2 flex flex-col items-center">
+                                            <span className="font-black text-secondary text-sm">{formatCurrency(item.salePrice)}</span>
                                         </div>
 
                                         {/* MARGEN */}
-                                        <div className="col-span-1 flex md:flex-col justify-between md:items-center">
-                                            <span className="md:hidden text-[10px] text-gray-400 font-bold uppercase">Margen</span>
+                                        <div className="col-span-1 flex flex-col items-center">
                                             <span className="px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-[10px] font-black border border-green-100 dark:border-green-800/30">
                                                 {item.profitMargin}%
                                             </span>
                                         </div>
 
                                         {/* ACCIONES */}
-                                        <div className="col-span-2 flex justify-end items-center gap-2 pt-3 md:pt-0 border-t md:border-t-0 border-gray-50 dark:border-gray-800">
+                                        <div className="col-span-2 flex justify-end items-center gap-2">
                                             <button
                                                 onClick={() => {
                                                     const fullItem = dishes.find(d => d.id === item.id);
                                                     setEditingItemDish(fullItem);
                                                 }}
-                                                className="flex-1 md:flex-none flex items-center justify-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 text-slate-500 hover:text-secondary rounded-lg md:rounded-md transition-all border border-gray-100 dark:border-gray-700 md:opacity-0 group-hover:opacity-100"
-                                            >
+                                                className="flex items-center justify-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 text-slate-500 hover:text-secondary rounded-md transition-all border border-gray-100 dark:border-gray-700 opacity-0 group-hover:opacity-100">
                                                 <span className="material-symbols-outlined text-[18px]">edit</span>
                                             </button>
                                             <button
                                                 onClick={() => setShowDeleteConfirm({ id: item.id, name: item.name, type: 'PRODUCTO' })}
-                                                className="flex-1 md:flex-none flex items-center justify-center gap-2 p-2 bg-red-50 dark:bg-red-900/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg md:rounded-md transition-all border border-red-100/50 dark:border-red-900/30 md:opacity-0 group-hover:opacity-100"
-                                            >
+                                                className="flex items-center justify-center gap-2 p-2 bg-red-50 dark:bg-red-900/10 text-red-500 hover:bg-red-500 hover:text-white rounded-md transition-all border border-red-100/50 dark:border-red-900/30 opacity-0 group-hover:opacity-100">
                                                 <span className="material-symbols-outlined text-[18px]">delete</span>
                                             </button>
                                         </div>

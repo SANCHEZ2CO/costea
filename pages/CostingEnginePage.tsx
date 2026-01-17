@@ -6,6 +6,7 @@ import { useApp } from '../context/AppContext';
 import { ItemType, CostItem } from '../types';
 import { formatCurrency } from '../constants';
 import IngredientModal from '../components/Inventory/IngredientModal';
+import LiquidModal from '../components/LiquidModal';
 
 const CostingEnginePage: React.FC = () => {
     const navigate = useNavigate();
@@ -35,6 +36,15 @@ const CostingEnginePage: React.FC = () => {
 
     // Modal State
     const [showModal, setShowModal] = useState(false);
+    const [validationModal, setValidationModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+    }>({
+        isOpen: false,
+        title: '',
+        message: ''
+    });
 
     const isRecipeMode = itemType === ItemType.RECETA;
 
@@ -226,6 +236,18 @@ const CostingEnginePage: React.FC = () => {
         setTempRecipeIngredients(prev => prev.filter(i => i.id !== id));
     };
 
+    const handleNavigateToResults = () => {
+        if (!project.name || project.name.trim() === '') {
+            setValidationModal({
+                isOpen: true,
+                title: 'Nombre Requerido',
+                message: 'Por favor asigna un nombre a tu menú antes de continuar con el costeo.'
+            });
+            return;
+        }
+        navigate('/results');
+    };
+
     // Labor Cost Calculation
     const monthlyMinutes = 30 * 8 * 60;
     const laborCostPerMinute = (settings?.monthlySalary || 0) / monthlyMinutes;
@@ -266,7 +288,7 @@ const CostingEnginePage: React.FC = () => {
                         </div>
                         <div className="relative">
                             <input
-                                className="w-full text-xl md:text-3xl font-black text-slate-900 dark:text-white bg-transparent border-0 border-b-2 border-gray-200 dark:border-gray-700 focus:border-primary dark:focus:border-primary focus:ring-0 px-0 py-1 md:py-2 placeholder-gray-300 transition-colors"
+                                className="w-full text-xl md:text-3xl font-black text-slate-700 dark:text-white bg-transparent border-0 border-b-2 border-gray-200 dark:border-gray-700 focus:border-primary dark:focus:border-primary focus:ring-0 px-0 py-1 md:py-2 placeholder-gray-300 transition-colors"
                                 placeholder="Ej: Desayuno Sorpresa Aniversario"
                                 type="text"
                                 value={project.name}
@@ -610,54 +632,63 @@ const CostingEnginePage: React.FC = () => {
                                 </tbody>
                             </table>
                         </div>
-                        <div className="border-t border-gray-200 dark:border-gray-800 p-5 bg-gray-50 dark:bg-gray-900/30 flex items-center justify-between mt-auto">
+                        <div className="border-t border-gray-200 dark:border-gray-800 p-4 md:p-5 bg-gray-50 dark:bg-gray-900/30 flex flex-col md:flex-row items-stretch md:items-center justify-between mt-auto gap-4 md:gap-0">
 
-                            {/* Labor Time Input - NOW FIRST */}
-                            <div className="flex items-center gap-4">
-                                <div className="p-2 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400">
-                                    <span className="material-symbols-outlined text-[22px]">timer</span>
+                            {/* Labor Time Input */}
+                            <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto">
+                                <div className="p-2 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400 shrink-0">
+                                    <span className="material-symbols-outlined text-[20px] md:text-[22px]">timer</span>
                                 </div>
-                                <div>
-                                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Tiempo de Mano de Obra</h4>
+                                <div className="flex-1 md:flex-none">
+                                    <div className="flex items-center justify-between md:justify-start gap-2">
+                                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">Tiempo de Mano de Obra</h4>
+                                        {laborTimeMinutes > 0 && (
+                                            <div className="md:hidden px-2 py-0.5 bg-green-100 dark:bg-green-900/30 rounded text-[10px] font-bold text-green-700 dark:text-green-300">
+                                                + {formatCurrency(laborCostTotal)}
+                                            </div>
+                                        )}
+                                    </div>
                                     <div className="flex items-center gap-2 mt-1">
                                         <input
                                             type="number"
                                             min="0"
-                                            className="w-16 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-xs font-bold focus:border-green-500 outline-none text-center"
+                                            className="w-16 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-xs font-bold focus:border-green-500 outline-none text-center transition-all"
                                             value={laborTimeMinutes}
                                             onChange={(e) => setLaborTimeMinutes(parseFloat(e.target.value) || 0)}
                                             placeholder="Min"
                                         />
                                         <span className="text-xs text-gray-500">minutos</span>
+                                        {laborTimeMinutes > 0 && (
+                                            <div className="hidden md:block ml-2 px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded text-xs font-bold text-green-700 dark:text-green-300">
+                                                + {formatCurrency(laborCostTotal)}
+                                            </div>
+                                        )}
                                     </div>
-                                    <p className="text-[10px] text-gray-400 mt-1">
+                                    <p className="text-[10px] text-gray-400 mt-1 hidden md:block">
                                         Basado en salario de {formatCurrency(settings?.monthlySalary || 0)}
                                     </p>
                                 </div>
-                                {laborTimeMinutes > 0 && (
-                                    <div className="ml-2 px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded text-xs font-bold text-green-700 dark:text-green-300">
-                                        + {formatCurrency(laborCostTotal)}
-                                    </div>
-                                )}
                             </div>
 
-                            {/* Factor Q - NOW SECOND - GROUPED */}
-                            <div className="flex items-center gap-4 border-l border-gray-200 dark:border-gray-700 pl-4 ml-auto">
-                                <div className="p-2 rounded-lg bg-secondary/10 text-secondary">
-                                    <span className="material-symbols-outlined text-[22px]">science</span>
+                            {/* Factor Q */}
+                            <div className="flex items-center justify-between md:justify-start gap-3 md:gap-4 w-full md:w-auto border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-800 md:border-gray-200 dark:md:border-gray-700 pt-3 md:pt-0 md:pl-4 md:ml-auto">
+                                <div className="flex items-center gap-3 md:gap-4">
+                                    <div className="p-2 rounded-lg bg-secondary/10 text-secondary shrink-0">
+                                        <span className="material-symbols-outlined text-[20px] md:text-[22px]">science</span>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">Factor Q (+{settings?.factorQPercentage || 5}%)</h4>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 leading-none mt-1">Colchón de seguridad</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Factor Q (+{settings?.factorQPercentage || 5}%)</h4>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 leading-none mt-1">Colchón de seguridad</p>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer ml-2">
+                                <label className="relative inline-flex items-center cursor-pointer ml-auto md:ml-2">
                                     <input
                                         className="sr-only peer"
                                         type="checkbox"
                                         checked={project.factorQ}
                                         onChange={toggleFactorQ}
                                     />
-                                    <div className="w-12 h-7 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:border-gray-600 peer-checked:bg-secondary"></div>
+                                    <div className="w-11 h-6 md:w-12 md:h-7 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 md:after:h-6 md:after:w-6 after:transition-all dark:border-gray-600 peer-checked:bg-secondary"></div>
                                 </label>
                             </div>
                         </div>
@@ -683,7 +714,7 @@ const CostingEnginePage: React.FC = () => {
                         </div>
                     </div>
                     <button
-                        onClick={() => navigate('/results')}
+                        onClick={handleNavigateToResults}
                         className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary-light hover:to-secondary-dark text-white rounded-xl py-5 shadow-xl shadow-primary/20 transition-all transform hover:-translate-y-0.5 font-bold text-lg flex items-center justify-center gap-3">
                         <span>VER MI COSTO TOTAL</span>
                         <span className="material-symbols-outlined">arrow_forward</span>
@@ -753,6 +784,16 @@ const CostingEnginePage: React.FC = () => {
                 onClose={() => setShowModal(false)}
                 onSuccess={(ing) => selectIngredient(ing)}
                 initialName={searchQuery}
+            />
+
+            <LiquidModal
+                isOpen={validationModal.isOpen}
+                title={validationModal.title}
+                message={validationModal.message}
+                type="warning"
+                onClose={() => setValidationModal({ isOpen: false, title: '', message: '' })}
+                onConfirm={() => setValidationModal({ isOpen: false, title: '', message: '' })}
+                confirmText="Entendido"
             />
         </div>
     );
