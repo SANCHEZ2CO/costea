@@ -45,6 +45,15 @@ const InventoryPage: React.FC = () => {
     const [editSelectedIng, setEditSelectedIng] = useState<any | null>(null);
     const [editUseQty, setEditUseQty] = useState('');
 
+    // List Filter Search State (for filtering displayed items)
+    const [productSearchFilter, setProductSearchFilter] = useState('');
+    const [recipeSearchFilter, setRecipeSearchFilter] = useState('');
+    const [ingredientSearchFilter, setIngredientSearchFilter] = useState('');
+
+    // Creation Modal States (Pop-ups)
+    const [showNewRecipeModal, setShowNewRecipeModal] = useState(false);
+    const [showNewIngredientModal, setShowNewIngredientModal] = useState(false);
+
     // Generic Alert Modal State
     const [alertModal, setAlertModal] = useState<{
         isOpen: boolean;
@@ -178,10 +187,29 @@ const InventoryPage: React.FC = () => {
         }));
 
         // Filter based on current tab
-        return dbItems.filter(item => item.type === filterType);
+        let filteredItems = dbItems.filter(item => item.type === filterType);
+
+        // Apply search filter
+        const searchFilter = filterType === 'PRODUCTO' ? productSearchFilter : recipeSearchFilter;
+        if (searchFilter.trim()) {
+            filteredItems = filteredItems.filter(item =>
+                item.name.toLowerCase().includes(searchFilter.toLowerCase())
+            );
+        }
+
+        return filteredItems;
+    };
+
+    // Filter ingredients based on search
+    const getFilteredIngredients = () => {
+        if (!ingredientSearchFilter.trim()) return ingredients;
+        return ingredients.filter(ing =>
+            ing.name.toLowerCase().includes(ingredientSearchFilter.toLowerCase())
+        );
     };
 
     const displayItems = getDisplayItems();
+    const filteredIngredients = getFilteredIngredients();
 
     const handleSaveIngredient = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -478,10 +506,22 @@ const InventoryPage: React.FC = () => {
                         <h2 className="text-2xl md:text-3xl font-bold text-neutral-dark dark:text-white tracking-tight">Mi Inventario</h2>
                         <p className="text-sm md:text-base text-neutral-gray dark:text-gray-400 mt-1">Gestiona tus productos terminados, recetas base e insumos.</p>
                     </div>
-                    {filterType !== 'INSUMO' && (
+                    {filterType === 'PRODUCTO' && (
                         <button onClick={handleNewProject} className="bg-secondary hover:bg-deep-purple text-white px-5 py-3 md:px-6 md:py-3 rounded-xl shadow-lg shadow-secondary/20 flex items-center justify-center gap-2 transition-all active:scale-95 font-medium w-full md:w-auto text-sm md:text-base">
                             <span className="material-symbols-outlined text-[20px]">add</span>
                             Nuevo Producto
+                        </button>
+                    )}
+                    {filterType === 'RECETA' && (
+                        <button onClick={() => setShowNewRecipeModal(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-5 py-3 md:px-6 md:py-3 rounded-xl shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-95 font-medium w-full md:w-auto text-sm md:text-base">
+                            <span className="material-symbols-outlined text-[20px]">add</span>
+                            Nueva Receta
+                        </button>
+                    )}
+                    {filterType === 'INSUMO' && (
+                        <button onClick={() => setShowNewIngredientModal(true)} className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-3 md:px-6 md:py-3 rounded-xl shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all active:scale-95 font-medium w-full md:w-auto text-sm md:text-base">
+                            <span className="material-symbols-outlined text-[20px]">add</span>
+                            Nuevo Insumo
                         </button>
                     )}
                 </div>
@@ -497,359 +537,182 @@ const InventoryPage: React.FC = () => {
                     </button>
                     <button
                         onClick={() => setFilterType('RECETA')}
-                        className={`pb-3 px-1 text-xs md:text-sm font-bold tracking-wide transition-colors relative whitespace-nowrap shrink-0 ${filterType === 'RECETA' ? 'text-secondary dark:text-white' : 'text-gray-400 hover:text-gray-600'}`}
+                        className={`pb-3 px-1 text-xs md:text-sm font-bold tracking-wide transition-colors relative whitespace-nowrap shrink-0 ${filterType === 'RECETA' ? 'text-orange-500 dark:text-orange-400' : 'text-gray-400 hover:text-gray-600'}`}
                     >
                         RECETAS BASE
-                        {filterType === 'RECETA' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-secondary"></span>}
+                        {filterType === 'RECETA' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-orange-500"></span>}
                     </button>
                     <button
                         onClick={() => setFilterType('INSUMO')}
-                        className={`pb-3 px-1 text-xs md:text-sm font-bold tracking-wide transition-colors relative whitespace-nowrap shrink-0 ${filterType === 'INSUMO' ? 'text-secondary dark:text-white' : 'text-gray-400 hover:text-gray-600'}`}
+                        className={`pb-3 px-1 text-xs md:text-sm font-bold tracking-wide transition-colors relative whitespace-nowrap shrink-0 ${filterType === 'INSUMO' ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 hover:text-gray-600'}`}
                     >
                         MIS INSUMOS
-                        {filterType === 'INSUMO' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-secondary"></span>}
+                        {filterType === 'INSUMO' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500"></span>}
                     </button>
                 </div>
 
                 {/* CONTENIDO */}
                 {filterType === 'INSUMO' ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in-up">
-                        {/* FORMULARIO DE CREACIÓN DE INSUMO */}
-                        <div className="lg:col-span-1">
-                            <div className="bg-white dark:bg-surface-dark p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 sticky top-4">
-                                <h3 className="text-base md:text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-secondary text-[20px]">add_circle</span>
-                                    Nuevo Insumo
-                                </h3>
-                                <form onSubmit={handleSaveIngredient} className="flex flex-col gap-3">
-                                    <div>
-                                        <label className="section-label">Nombre del Insumo</label>
-                                        <input
-                                            placeholder="Ej: Harina Trigo, Fresas..."
-                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-sm focus:border-secondary outline-none transition-all placeholder:text-gray-400"
-                                            value={newIng.name}
-                                            onChange={e => setNewIng({ ...newIng, name: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="section-label">Precio Compra</label>
-                                            <div className="relative group-focus-within:text-secondary">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold group-focus-within:text-secondary transition-colors">$</span>
-                                                <input
-                                                    type="number"
-                                                    placeholder="0"
-                                                    className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-3 pl-6 text-sm focus:border-secondary outline-none transition-all placeholder:text-gray-400"
-                                                    value={newIng.price}
-                                                    onChange={e => setNewIng({ ...newIng, price: e.target.value })}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="section-label">Cant. Paquete</label>
-                                            <input
-                                                type="number"
-                                                placeholder="0"
-                                                className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-sm focus:border-secondary outline-none transition-all placeholder:text-gray-400"
-                                                value={newIng.qty}
-                                                onChange={e => setNewIng({ ...newIng, qty: e.target.value })}
-                                            />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="section-label">Unidad de Medida</label>
-                                        <div className="flex gap-1 bg-gray-50 dark:bg-background-dark p-1 rounded-xl border border-gray-200 dark:border-gray-700 overflow-x-auto">
-                                            {['Und', 'Gr', 'Ml', 'Kg', 'Lt'].map(u => (
-                                                <button
-                                                    key={u}
-                                                    type="button"
-                                                    onClick={() => setNewIng({ ...newIng, unit: u })}
-                                                    className={`flex-1 py-2 px-1 rounded-lg text-[10px] md:text-xs font-bold transition-all whitespace-nowrap ${newIng.unit === u ? 'bg-white dark:bg-gray-700 shadow-sm text-secondary ring-1 ring-black/5' : 'text-gray-400 hover:text-gray-600'}`}
-                                                >
-                                                    {u}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <button
-                                        type="submit"
-                                        disabled={isSubmitting}
-                                        className="mt-2 w-full bg-secondary hover:bg-secondary-dark text-white font-bold py-3.5 rounded-xl shadow-lg shadow-secondary/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        {isSubmitting ? <span className="material-symbols-outlined animate-spin text-sm">refresh</span> : 'GUARDAR AHORA'}
-                                    </button>
-                                </form>
-                            </div>
+                    <div className="flex flex-col gap-4 animate-fade-in-up">
+                        {/* Search Bar */}
+                        <div className="relative group/search">
+                            <input
+                                className="w-full bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 pl-11 text-sm focus:border-blue-500 outline-none transition-all shadow-sm"
+                                placeholder="Buscar insumos..."
+                                type="text"
+                                value={ingredientSearchFilter}
+                                onChange={(e) => setIngredientSearchFilter(e.target.value)}
+                            />
+                            <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-blue-500 transition-colors">search</span>
                         </div>
 
                         {/* LISTA DE INSUMOS */}
-                        <div className="lg:col-span-2">
-                            {loadingData ? (
-                                <div className="text-center py-10">
-                                    <span className="material-symbols-outlined animate-spin text-4xl text-gray-300">progress_activity</span>
-                                    <p className="text-xs text-gray-400 mt-2">Cargando...</p>
-                                </div>
-                            ) : ingredients.length > 0 ? (
-                                <div className="flex flex-col gap-4">
-                                    {ingredients.map(ing => (
-                                        <div key={ing.id} className="group bg-white dark:bg-surface-dark rounded-2xl md:rounded-xl shadow-sm border border-gray-100 dark:border-white/5 overflow-hidden hover:shadow-md hover:border-secondary/20 transition-all duration-300">
-                                            <div className="flex items-center justify-between p-4 px-6">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="size-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500 flex items-center justify-center">
-                                                        <span className="material-symbols-outlined">grocery</span>
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="font-bold text-slate-800 dark:text-white text-sm">{ing.name}</h4>
-                                                        <p className="text-[10px] text-gray-400 font-bold uppercase">{ing.purchase_quantity} {ing.purchase_unit} (Paquete: {formatCurrency(ing.purchase_price)})</p>
-                                                    </div>
+                        {loadingData ? (
+                            <div className="text-center py-10">
+                                <span className="material-symbols-outlined animate-spin text-4xl text-gray-300">progress_activity</span>
+                                <p className="text-xs text-gray-400 mt-2">Cargando...</p>
+                            </div>
+                        ) : filteredIngredients.length > 0 ? (
+                            <div className="flex flex-col gap-3 md:gap-4">
+                                {filteredIngredients.map(ing => (
+                                    <div key={ing.id} className="group bg-white dark:bg-surface-dark rounded-2xl md:rounded-xl shadow-sm border border-gray-100 dark:border-white/5 overflow-hidden hover:shadow-md hover:border-blue-500/20 transition-all duration-300">
+                                        <div className="flex items-center justify-between p-4 px-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="size-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-500 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined">grocery</span>
                                                 </div>
-                                                <div className="flex items-center gap-6">
-                                                    <div className="text-right hidden sm:block">
-                                                        <p className="text-[9px] text-gray-400 font-bold uppercase">Costo Unitario</p>
-                                                        <p className="font-black text-slate-700 dark:text-white text-base">
-                                                            {formatCurrency(ing.purchase_price / ing.purchase_quantity)} <span className="text-[10px] text-gray-400 font-normal">/ {ing.purchase_unit}</span>
-                                                        </p>
-                                                    </div>
-                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button
-                                                            onClick={() => setEditingItem(ing)}
-                                                            className="p-2 text-gray-400 hover:text-secondary rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
-                                                        >
-                                                            <span className="material-symbols-outlined text-[20px]">edit</span>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setShowDeleteConfirm({ id: ing.id, name: ing.name, type: 'INSUMO' })}
-                                                            className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10"
-                                                        >
-                                                            <span className="material-symbols-outlined text-[20px]">delete</span>
-                                                        </button>
-                                                    </div>
+                                                <div>
+                                                    <h4 className="font-bold text-slate-800 dark:text-white text-sm">{ing.name}</h4>
+                                                    <p className="text-[10px] text-gray-400 font-bold uppercase">{ing.purchase_quantity} {ing.purchase_unit} (Paquete: {formatCurrency(ing.purchase_price)})</p>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/50 dark:bg-gray-900/50">
-                                    <div className="size-16 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-400 mb-4 shadow-sm">
-                                        <span className="material-symbols-outlined text-3xl">kitchen</span>
-                                    </div>
-                                    <h3 className="text-sm font-bold text-neutral-dark dark:text-white">Tu despensa está vacía</h3>
-                                    <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mt-1 text-xs">
-                                        Agrega tus insumos frecuentes para costear más rápido.
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                ) : filterType === 'RECETA' ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in-up">
-                        {/* CONSTRUCTOR DE RECETAS BASE */}
-                        <div className="lg:col-span-1">
-                            <div className="bg-white dark:bg-surface-dark p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 sticky top-4">
-                                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-orange-500">bakery_dining</span>
-                                    Constructor de Receta
-                                </h3>
-
-                                <div className="flex flex-col gap-4">
-                                    <div>
-                                        <label className="section-label">Nombre de la Receta</label>
-                                        <input
-                                            placeholder="Ej: Masa de Crepes, Salsa Base..."
-                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm focus:border-orange-500 outline-none placeholder:text-gray-300 dark:placeholder:text-gray-600"
-                                            value={recipeName}
-                                            onChange={e => setRecipeName(e.target.value)}
-                                        />
-                                    </div>
-
-                                    <div className="pt-4 border-t border-gray-50 dark:border-gray-800">
-                                        <label className="section-label mb-2">Añadir Insumos</label>
-                                        <div className="relative group/search mb-3">
-                                            <input
-                                                className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 pl-10 text-sm focus:border-orange-500 outline-none transition-all"
-                                                placeholder="Buscar ingrediente..."
-                                                type="text"
-                                                value={searchQuery}
-                                                onChange={(e) => setSearchQuery(e.target.value)}
-                                            />
-                                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-orange-500 transition-colors">search</span>
-
-                                            {/* Resultados de búsqueda */}
-                                            {searchResults.length > 0 && (
-                                                <div className="absolute top-full left-0 w-full mt-2 bg-white dark:bg-surface-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
-                                                    {searchResults.map((ing) => (
-                                                        <button
-                                                            key={ing.id}
-                                                            onClick={() => { setSelectedIngredient(ing); setSearchQuery(ing.name); setSearchResults([]); }}
-                                                            className="w-full text-left px-4 py-3 hover:bg-orange-50 dark:hover:bg-orange-900/20 flex items-center justify-between border-b border-gray-50 dark:border-gray-800 last:border-0"
-                                                        >
-                                                            <span className="font-bold text-slate-700 dark:text-gray-200 text-xs">{ing.name}</span>
-                                                            <span className="text-[9px] bg-orange-100 dark:bg-orange-900/40 text-orange-600 px-2 py-0.5 rounded-full font-bold">INSUMO</span>
-                                                        </button>
-                                                    ))}
+                                            <div className="flex items-center gap-6">
+                                                <div className="text-right hidden sm:block">
+                                                    <p className="text-[9px] text-gray-400 font-bold uppercase">Costo Unitario</p>
+                                                    <p className="font-black text-slate-700 dark:text-white text-base">
+                                                        {formatCurrency(ing.purchase_price / ing.purchase_quantity)} <span className="text-[10px] text-gray-400 font-normal">/ {ing.purchase_unit}</span>
+                                                    </p>
                                                 </div>
-                                            )}
-                                        </div>
-
-                                        {/* Inputs de cantidad/precio */}
-                                        {selectedIngredient ? (
-                                            <div className="bg-orange-50 dark:bg-orange-900/10 p-4 rounded-xl border border-orange-100 dark:border-orange-900/30 animate-fade-in">
-                                                <div className="flex justify-between items-center mb-3">
-                                                    <span className="text-[10px] font-bold text-orange-600 uppercase">Cantidad a Usar</span>
-                                                    <button onClick={() => setSelectedIngredient(null)} className="text-orange-400 hover:text-orange-600 transition-colors">
-                                                        <span className="material-symbols-outlined text-[18px]">close</span>
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => setEditingItem(ing)}
+                                                        className="p-2 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[20px]">edit</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setShowDeleteConfirm({ id: ing.id, name: ing.name, type: 'INSUMO' })}
+                                                        className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[20px]">delete</span>
                                                     </button>
                                                 </div>
-                                                <div className="flex gap-2">
-                                                    <input
-                                                        type="number"
-                                                        placeholder="0"
-                                                        className="flex-1 bg-white dark:bg-background-dark border border-orange-200 dark:border-orange-800 rounded-lg p-2.5 text-sm focus:border-orange-500 outline-none"
-                                                        value={useQty}
-                                                        onChange={e => setUseQty(e.target.value)}
-                                                    />
-                                                    <div className="w-20 bg-white dark:bg-background-dark border border-orange-200 dark:border-orange-800 rounded-lg p-2.5 text-sm flex items-center justify-center font-bold text-orange-600">
-                                                        {selectedIngredient.purchase_unit}
-                                                    </div>
-                                                </div>
                                             </div>
-                                        ) : searchQuery.length >= 2 && (
-                                            <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 flex flex-col gap-3 animate-fade-in">
-                                                <p className="text-[10px] font-bold text-gray-400 uppercase">Item Nuevo - Definir Precio</p>
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <div className="relative">
-                                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]">$</span>
-                                                        <input
-                                                            type="number"
-                                                            placeholder="Precio"
-                                                            className="w-full bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-lg p-2.5 pl-4 text-xs outline-none focus:border-secondary"
-                                                            value={manualPrice}
-                                                            onChange={e => setManualPrice(e.target.value)}
-                                                        />
-                                                    </div>
-                                                    <input
-                                                        type="number"
-                                                        placeholder="Rinde"
-                                                        className="w-full bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-lg p-2.5 text-xs outline-none focus:border-secondary"
-                                                        value={manualYield}
-                                                        onChange={e => setManualYield(e.target.value)}
-                                                    />
-                                                </div>
-                                                <div className="flex gap-1">
-                                                    {['Und', 'Gr', 'Ml', 'Kg', 'Lt'].map(u => (
-                                                        <button
-                                                            key={u}
-                                                            onClick={() => setUseUnit(u)}
-                                                            className={`flex-1 py-1 rounded-md text-[9px] font-bold border transition-all ${useUnit === u ? 'bg-secondary text-white border-secondary' : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700'}`}
-                                                        >
-                                                            {u}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        <button
-                                            onClick={handleAddItemToRecipe}
-                                            disabled={!searchQuery || (!selectedIngredient && (!manualPrice || !manualYield))}
-                                            className="w-full mt-4 py-3 bg-slate-800 dark:bg-surface-light text-white dark:text-slate-900 rounded-xl font-bold text-xs hover:bg-black dark:hover:bg-white transition-all active:scale-95 disabled:opacity-50"
-                                        >
-                                            AÑADIR A RECETA
-                                        </button>
-
-                                        {/* INGREDIENTES EN LA RECETA ACTUAL */}
-                                        {tempRecipeIngredients.length > 0 && (
-                                            <div className="mt-6 pt-4 border-t border-gray-50 dark:border-gray-800 flex flex-col gap-2">
-                                                <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Insumos en esta receta</p>
-                                                <div className="max-h-40 overflow-y-auto pr-1 flex flex-col gap-2">
-                                                    {tempRecipeIngredients.map(item => (
-                                                        <div key={item.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/40 p-2.5 rounded-lg text-[11px] animate-fade-in group/item">
-                                                            <div className="flex flex-col">
-                                                                <span className="font-bold text-slate-700 dark:text-gray-300 truncate max-w-[140px]">{item.name}</span>
-                                                                <span className="text-[9px] text-gray-400">{formatCurrency(item.cost)}</span>
-                                                            </div>
-                                                            <button onClick={() => setTempRecipeIngredients(tempRecipeIngredients.filter(i => i.id !== item.id))} className="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover/item:opacity-100">
-                                                                <span className="material-symbols-outlined text-sm">close</span>
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-
-                                                <div className="mt-4 p-4 bg-orange-500 rounded-2xl text-white text-center shadow-lg shadow-orange-500/20">
-                                                    <p className="text-[10px] font-bold uppercase opacity-80">Costo Total Receta</p>
-                                                    <p className="text-2xl font-black">{formatCurrency(tempRecipeIngredients.reduce((acc, i) => acc + i.cost, 0))}</p>
-                                                </div>
-
-                                                <button
-                                                    onClick={handleSaveRecipe}
-                                                    disabled={!recipeName || isSubmitting}
-                                                    className="mt-2 w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black rounded-2xl active:scale-95 transition-all text-sm shadow-xl flex items-center justify-center gap-2"
-                                                >
-                                                    {isSubmitting ? <span className="material-symbols-outlined animate-spin">refresh</span> : 'GUARDAR RECETA BASE'}
-                                                </button>
-                                            </div>
-                                        )}
+                                        </div>
                                     </div>
-                                </div>
+                                ))}
                             </div>
+                        ) : ingredients.length > 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/50 dark:bg-gray-900/50">
+                                <div className="size-16 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-400 mb-4 shadow-sm">
+                                    <span className="material-symbols-outlined text-3xl">search_off</span>
+                                </div>
+                                <h3 className="text-sm font-bold text-neutral-dark dark:text-white">Sin resultados</h3>
+                                <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mt-1 text-xs">
+                                    No se encontraron insumos con "{ingredientSearchFilter}"
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/50 dark:bg-gray-900/50">
+                                <div className="size-16 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-400 mb-4 shadow-sm">
+                                    <span className="material-symbols-outlined text-3xl">kitchen</span>
+                                </div>
+                                <h3 className="text-sm font-bold text-neutral-dark dark:text-white">Tu despensa está vacía</h3>
+                                <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mt-1 text-xs">
+                                    Agrega tus insumos frecuentes para costear más rápido.
+                                </p>
+                                <button onClick={() => setShowNewIngredientModal(true)} className="mt-4 text-blue-500 font-bold hover:underline text-sm">+ Agregar primer insumo</button>
+                            </div>
+                        )}
+                    </div>
+                ) : filterType === 'RECETA' ? (
+                    <div className="flex flex-col gap-4 animate-fade-in-up">
+                        {/* Search Bar */}
+                        <div className="relative group/search">
+                            <input
+                                className="w-full bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 pl-11 text-sm focus:border-orange-500 outline-none transition-all shadow-sm"
+                                placeholder="Buscar recetas..."
+                                type="text"
+                                value={recipeSearchFilter}
+                                onChange={(e) => setRecipeSearchFilter(e.target.value)}
+                            />
+                            <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-orange-500 transition-colors">search</span>
                         </div>
 
                         {/* LISTADO DE RECETAS GUARDADAS */}
-                        <div className="lg:col-span-2">
-                            {loadingData ? (
-                                <div className="text-center py-10">
-                                    <span className="material-symbols-outlined animate-spin text-4xl text-gray-300">progress_activity</span>
-                                </div>
-                            ) : displayItems.length > 0 ? (
-                                <div className="flex flex-col gap-4">
-                                    {displayItems.map((item) => (
-                                        <div key={item.id} className="group bg-white dark:bg-surface-dark rounded-2xl md:rounded-xl shadow-sm border border-gray-100 dark:border-white/5 overflow-hidden hover:shadow-md hover:border-orange-500/20 transition-all duration-300">
-                                            <div className="flex items-center justify-between p-4 px-6">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="size-10 rounded-xl bg-orange-50 dark:bg-orange-900/20 text-orange-500 flex items-center justify-center">
-                                                        <span className="material-symbols-outlined">bakery_dining</span>
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="font-bold text-slate-800 dark:text-white text-sm">{item.name}</h4>
-                                                        <p className="text-[10px] text-gray-400 font-bold uppercase">Receta Base</p>
-                                                    </div>
+                        {loadingData ? (
+                            <div className="text-center py-10">
+                                <span className="material-symbols-outlined animate-spin text-4xl text-gray-300">progress_activity</span>
+                            </div>
+                        ) : displayItems.length > 0 ? (
+                            <div className="flex flex-col gap-3 md:gap-4">
+                                {displayItems.map((item) => (
+                                    <div key={item.id} className="group bg-white dark:bg-surface-dark rounded-2xl md:rounded-xl shadow-sm border border-gray-100 dark:border-white/5 overflow-hidden hover:shadow-md hover:border-orange-500/20 transition-all duration-300">
+                                        <div className="flex items-center justify-between p-4 px-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="size-10 rounded-xl bg-orange-50 dark:bg-orange-900/20 text-orange-500 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined">bakery_dining</span>
                                                 </div>
-                                                <div className="flex items-center gap-6">
-                                                    <div className="text-right">
-                                                        <p className="text-[9px] text-gray-400 font-bold uppercase">Costo Base</p>
-                                                        <p className="font-black text-slate-700 dark:text-white text-base">{formatCurrency(item.totalCost)}</p>
-                                                    </div>
-                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button
-                                                            onClick={() => {
-                                                                const fullItem = dishes.find(d => d.id === item.id);
-                                                                setEditingItemDish(fullItem);
-                                                            }}
-                                                            className="p-2 text-gray-400 hover:text-orange-500 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20"
-                                                        >
-                                                            <span className="material-symbols-outlined text-[20px]">edit</span>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setShowDeleteConfirm({ id: item.id, name: item.name, type: 'RECETA' })}
-                                                            className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10"
-                                                        >
-                                                            <span className="material-symbols-outlined text-[20px]">delete</span>
-                                                        </button>
-                                                    </div>
+                                                <div>
+                                                    <h4 className="font-bold text-slate-800 dark:text-white text-sm">{item.name}</h4>
+                                                    <p className="text-[10px] text-gray-400 font-bold uppercase">Receta Base</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-6">
+                                                <div className="text-right">
+                                                    <p className="text-[9px] text-gray-400 font-bold uppercase">Costo Base</p>
+                                                    <p className="font-black text-slate-700 dark:text-white text-base">{formatCurrency(item.totalCost)}</p>
+                                                </div>
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => {
+                                                            const fullItem = dishes.find(d => d.id === item.id);
+                                                            setEditingItemDish(fullItem);
+                                                        }}
+                                                        className="p-2 text-gray-400 hover:text-orange-500 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[20px]">edit</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setShowDeleteConfirm({ id: item.id, name: item.name, type: 'RECETA' })}
+                                                        className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[20px]">delete</span>
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>
-                                    ))}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : dishes.filter(d => d.sale_price <= 0).length > 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/50 dark:bg-gray-900/50">
+                                <div className="size-16 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-400 mb-4 shadow-sm">
+                                    <span className="material-symbols-outlined text-3xl">search_off</span>
                                 </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-3xl bg-gray-50/30">
-                                    <span className="material-symbols-outlined text-4xl text-gray-300 mb-3">no_meals</span>
-                                    <h3 className="text-sm font-bold text-neutral-dark dark:text-white">No tienes recetas base</h3>
-                                    <p className="text-xs text-gray-400 max-w-[200px] mt-1">Usa el constructor de la izquierda para crear mezclas de ingredientes.</p>
-                                </div>
-                            )}
-                        </div>
+                                <h3 className="text-sm font-bold text-neutral-dark dark:text-white">Sin resultados</h3>
+                                <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mt-1 text-xs">
+                                    No se encontraron recetas con "{recipeSearchFilter}"
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-3xl bg-gray-50/30">
+                                <span className="material-symbols-outlined text-4xl text-gray-300 mb-3">no_meals</span>
+                                <h3 className="text-sm font-bold text-neutral-dark dark:text-white">No tienes recetas base</h3>
+                                <p className="text-xs text-gray-400 max-w-[200px] mt-1">Crea recetas base para agilizar el costeo de tus productos.</p>
+                                <button onClick={() => setShowNewRecipeModal(true)} className="mt-4 text-orange-500 font-bold hover:underline text-sm">+ Crear primera receta</button>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     /* PRODUCTO (Lista simple) */
@@ -859,6 +722,18 @@ const InventoryPage: React.FC = () => {
                         </div>
                     ) : displayItems.length > 0 ? (
                         <div className="flex flex-col gap-3 md:gap-4 animate-fade-in-up">
+                            {/* Search Bar */}
+                            <div className="relative group/search">
+                                <input
+                                    className="w-full bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 pl-11 text-sm focus:border-secondary outline-none transition-all shadow-sm"
+                                    placeholder="Buscar productos..."
+                                    type="text"
+                                    value={productSearchFilter}
+                                    onChange={(e) => setProductSearchFilter(e.target.value)}
+                                />
+                                <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-secondary transition-colors">search</span>
+                            </div>
+
                             {/* Header del Listado (Desktop only) */}
                             <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-gray-100/50 dark:bg-gray-800/30 rounded-xl text-[10px] font-bold text-gray-400 uppercase tracking-widest border border-transparent">
                                 <div className="col-span-1">Tipo</div>
@@ -977,6 +852,29 @@ const InventoryPage: React.FC = () => {
                                 </div>
                             ))}
                         </div>
+                    ) : dishes.filter(d => d.sale_price > 0).length > 0 ? (
+                        <div className="flex flex-col gap-4 animate-fade-in-up">
+                            {/* Search Bar (shows when filtering yields no results) */}
+                            <div className="relative group/search">
+                                <input
+                                    className="w-full bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 pl-11 text-sm focus:border-secondary outline-none transition-all shadow-sm"
+                                    placeholder="Buscar productos..."
+                                    type="text"
+                                    value={productSearchFilter}
+                                    onChange={(e) => setProductSearchFilter(e.target.value)}
+                                />
+                                <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-secondary transition-colors">search</span>
+                            </div>
+                            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/50 dark:bg-gray-900/50">
+                                <div className="size-16 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-400 mb-4 shadow-sm">
+                                    <span className="material-symbols-outlined text-3xl">search_off</span>
+                                </div>
+                                <h3 className="text-sm font-bold text-neutral-dark dark:text-white">Sin resultados</h3>
+                                <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mt-1 text-xs">
+                                    No se encontraron productos con "{productSearchFilter}"
+                                </p>
+                            </div>
+                        </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/50 dark:bg-gray-900/50">
                             <div className="size-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400 mb-4">
@@ -996,12 +894,242 @@ const InventoryPage: React.FC = () => {
             {/* MODAL: CONFIGURAICON DE ELIMINACION */}
             {/* OLD DELETE CONFIRM MODAL REMOVED (Replaced by LiquidModal above) */}
 
+            {/* MODAL: NUEVO INSUMO (Pop-up) */}
+            {showNewIngredientModal && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-background-light/60 dark:bg-background-dark/80 backdrop-blur-xl transition-opacity" onClick={() => setShowNewIngredientModal(false)}></div>
+                    <div className="relative bg-white/80 dark:bg-surface-dark/80 backdrop-blur-2xl w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-white/20 dark:border-white/10 transform transition-all scale-100 animate-fade-in-up">
+                        <div className="p-6 text-center bg-gradient-to-r from-blue-500/90 to-blue-600/90 relative overflow-hidden">
+                            <div className="absolute inset-0 bg-white/10 opacity-50 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+                            <h3 className="text-2xl font-black text-white relative z-10 mb-1">Nuevo Insumo</h3>
+                            <button onClick={() => setShowNewIngredientModal(false)} className="absolute top-4 right-4 text-white/80 hover:text-white focus:outline-none">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <form onSubmit={(e) => { handleSaveIngredient(e); setShowNewIngredientModal(false); }} className="p-8 flex flex-col gap-5">
+                            <div>
+                                <label className="section-label">Nombre del Insumo</label>
+                                <input
+                                    placeholder="Ej: Harina Trigo, Fresas..."
+                                    className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-gray-400"
+                                    value={newIng.name}
+                                    onChange={e => setNewIng({ ...newIng, name: e.target.value })}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="section-label">Precio Compra</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">$</span>
+                                        <input
+                                            type="number"
+                                            placeholder="0"
+                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-3 pl-6 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-gray-400"
+                                            value={newIng.price}
+                                            onChange={e => setNewIng({ ...newIng, price: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="section-label">Cant. Paquete</label>
+                                    <input
+                                        type="number"
+                                        placeholder="0"
+                                        className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-gray-400"
+                                        value={newIng.qty}
+                                        onChange={e => setNewIng({ ...newIng, qty: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="section-label">Unidad de Medida</label>
+                                <div className="flex gap-1 bg-gray-50 dark:bg-background-dark p-1 rounded-xl border border-gray-200 dark:border-gray-700">
+                                    {['Und', 'Gr', 'Ml', 'Kg', 'Lt'].map(u => (
+                                        <button
+                                            key={u}
+                                            type="button"
+                                            onClick={() => setNewIng({ ...newIng, unit: u })}
+                                            className={`flex-1 py-2 px-1 rounded-lg text-xs font-bold transition-all ${newIng.unit === u ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-500 ring-1 ring-black/5' : 'text-gray-400 hover:text-gray-600'}`}
+                                        >
+                                            {u}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <button
+                                type="submit"
+                                disabled={isSubmitting || !newIng.name || !newIng.price || !newIng.qty}
+                                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {isSubmitting ? <span className="material-symbols-outlined animate-spin text-sm">refresh</span> : 'CREAR INSUMO'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: NUEVA RECETA (Pop-up) */}
+            {showNewRecipeModal && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="absolute inset-0 bg-background-light/60 dark:bg-background-dark/80 backdrop-blur-xl transition-opacity" onClick={() => setShowNewRecipeModal(false)}></div>
+                    <div className="relative bg-white/80 dark:bg-surface-dark/80 backdrop-blur-2xl w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-white/20 dark:border-white/10 transform transition-all scale-100 animate-fade-in-up my-auto max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 text-center bg-gradient-to-r from-orange-500/90 to-amber-500/90 relative overflow-hidden sticky top-0 z-10">
+                            <div className="absolute inset-0 bg-white/10 opacity-50 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+                            <h3 className="text-2xl font-black text-white relative z-10 mb-1">Nueva Receta Base</h3>
+                            <button onClick={() => setShowNewRecipeModal(false)} className="absolute top-4 right-4 text-white/80 hover:text-white focus:outline-none">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <div className="p-6 flex flex-col gap-4">
+                            <div>
+                                <label className="section-label">Nombre de la Receta</label>
+                                <input
+                                    placeholder="Ej: Masa de Crepes, Salsa Base..."
+                                    className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm focus:border-orange-500 outline-none placeholder:text-gray-300 dark:placeholder:text-gray-600"
+                                    value={recipeName}
+                                    onChange={e => setRecipeName(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+                                <label className="section-label mb-2">Añadir Insumos</label>
+                                <div className="relative group/search mb-3">
+                                    <input
+                                        className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 pl-10 text-sm focus:border-orange-500 outline-none transition-all"
+                                        placeholder="Buscar ingrediente..."
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
+                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-orange-500 transition-colors">search</span>
+
+                                    {/* Resultados de búsqueda */}
+                                    {searchResults.length > 0 && (
+                                        <div className="absolute top-full left-0 w-full mt-2 bg-white dark:bg-surface-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
+                                            {searchResults.map((ing) => (
+                                                <button
+                                                    key={ing.id}
+                                                    onClick={() => { setSelectedIngredient(ing); setSearchQuery(ing.name); setSearchResults([]); }}
+                                                    className="w-full text-left px-4 py-3 hover:bg-orange-50 dark:hover:bg-orange-900/20 flex items-center justify-between border-b border-gray-50 dark:border-gray-800 last:border-0"
+                                                >
+                                                    <span className="font-bold text-slate-700 dark:text-gray-200 text-xs">{ing.name}</span>
+                                                    <span className="text-[9px] bg-orange-100 dark:bg-orange-900/40 text-orange-600 px-2 py-0.5 rounded-full font-bold">INSUMO</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Inputs de cantidad/precio */}
+                                {selectedIngredient ? (
+                                    <div className="bg-orange-50 dark:bg-orange-900/10 p-4 rounded-xl border border-orange-100 dark:border-orange-900/30 animate-fade-in">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <span className="text-[10px] font-bold text-orange-600 uppercase">Cantidad a Usar</span>
+                                            <button onClick={() => setSelectedIngredient(null)} className="text-orange-400 hover:text-orange-600 transition-colors">
+                                                <span className="material-symbols-outlined text-[18px]">close</span>
+                                            </button>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="number"
+                                                placeholder="0"
+                                                className="flex-1 bg-white dark:bg-background-dark border border-orange-200 dark:border-orange-800 rounded-lg p-2.5 text-sm focus:border-orange-500 outline-none"
+                                                value={useQty}
+                                                onChange={e => setUseQty(e.target.value)}
+                                            />
+                                            <div className="w-20 bg-white dark:bg-background-dark border border-orange-200 dark:border-orange-800 rounded-lg p-2.5 text-sm flex items-center justify-center font-bold text-orange-600">
+                                                {selectedIngredient.purchase_unit}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : searchQuery.length >= 2 && (
+                                    <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 flex flex-col gap-3 animate-fade-in">
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Item Nuevo - Definir Precio</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div className="relative">
+                                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]">$</span>
+                                                <input
+                                                    type="number"
+                                                    placeholder="Precio"
+                                                    className="w-full bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-lg p-2.5 pl-4 text-xs outline-none focus:border-secondary"
+                                                    value={manualPrice}
+                                                    onChange={e => setManualPrice(e.target.value)}
+                                                />
+                                            </div>
+                                            <input
+                                                type="number"
+                                                placeholder="Rinde"
+                                                className="w-full bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-lg p-2.5 text-xs outline-none focus:border-secondary"
+                                                value={manualYield}
+                                                onChange={e => setManualYield(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="flex gap-1">
+                                            {['Und', 'Gr', 'Ml', 'Kg', 'Lt'].map(u => (
+                                                <button
+                                                    key={u}
+                                                    onClick={() => setUseUnit(u)}
+                                                    className={`flex-1 py-1 rounded-md text-[9px] font-bold border transition-all ${useUnit === u ? 'bg-secondary text-white border-secondary' : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700'}`}
+                                                >
+                                                    {u}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={handleAddItemToRecipe}
+                                    disabled={!searchQuery || (!selectedIngredient && (!manualPrice || !manualYield))}
+                                    className="w-full mt-4 py-3 bg-slate-800 dark:bg-surface-light text-white dark:text-slate-900 rounded-xl font-bold text-xs hover:bg-black dark:hover:bg-white transition-all active:scale-95 disabled:opacity-50"
+                                >
+                                    AÑADIR A RECETA
+                                </button>
+
+                                {/* INGREDIENTES EN LA RECETA ACTUAL */}
+                                {tempRecipeIngredients.length > 0 && (
+                                    <div className="mt-4 pt-4 border-t border-gray-50 dark:border-gray-800 flex flex-col gap-2">
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Insumos en esta receta</p>
+                                        <div className="max-h-40 overflow-y-auto pr-1 flex flex-col gap-2">
+                                            {tempRecipeIngredients.map(item => (
+                                                <div key={item.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/40 p-2.5 rounded-lg text-[11px] animate-fade-in group/item">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-slate-700 dark:text-gray-300 truncate max-w-[140px]">{item.name}</span>
+                                                        <span className="text-[9px] text-gray-400">{formatCurrency(item.cost)}</span>
+                                                    </div>
+                                                    <button onClick={() => setTempRecipeIngredients(tempRecipeIngredients.filter(i => i.id !== item.id))} className="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover/item:opacity-100">
+                                                        <span className="material-symbols-outlined text-sm">close</span>
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="mt-4 p-4 bg-orange-500 rounded-2xl text-white text-center shadow-lg shadow-orange-500/20">
+                                            <p className="text-[10px] font-bold uppercase opacity-80">Costo Total Receta</p>
+                                            <p className="text-2xl font-black">{formatCurrency(tempRecipeIngredients.reduce((acc, i) => acc + i.cost, 0))}</p>
+                                        </div>
+
+                                        <button
+                                            onClick={(e) => { handleSaveRecipe(e as any); setShowNewRecipeModal(false); }}
+                                            disabled={!recipeName || isSubmitting}
+                                            className="mt-2 w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black rounded-2xl active:scale-95 transition-all text-sm shadow-xl flex items-center justify-center gap-2"
+                                        >
+                                            {isSubmitting ? <span className="material-symbols-outlined animate-spin">refresh</span> : 'GUARDAR RECETA BASE'}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* MODAL: EDICIÓN DE INSUMO (Liquid Style) */}
             {editingItem && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-background-light/60 dark:bg-background-dark/80 backdrop-blur-xl transition-opacity" onClick={() => setEditingItem(null)}></div>
                     <div className="relative bg-white/80 dark:bg-surface-dark/80 backdrop-blur-2xl w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-white/20 dark:border-white/10 transform transition-all scale-100 animate-fade-in-up">
-                        <div className="p-6 text-center bg-gradient-to-r from-secondary/90 to-primary/90 relative overflow-hidden">
+                        <div className="p-6 text-center bg-gradient-to-r from-blue-500/90 to-blue-600/90 relative overflow-hidden">
                             <div className="absolute inset-0 bg-white/10 opacity-50 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
                             <h3 className="text-2xl font-black text-white relative z-10 mb-1">Editar Insumo</h3>
                             <button onClick={() => setEditingItem(null)} className="absolute top-4 right-4 text-white/80 hover:text-white focus:outline-none">
@@ -1012,7 +1140,7 @@ const InventoryPage: React.FC = () => {
                             <div>
                                 <label className="section-label">Nombre del Insumo</label>
                                 <input
-                                    className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 px-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
+                                    className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 px-4 text-slate-800 dark:text-white font-medium focus:border-blue-500 outline-none transition-all"
                                     value={editingItem.name}
                                     onChange={e => setEditingItem({ ...editingItem, name: e.target.value })}
                                 />
@@ -1024,7 +1152,7 @@ const InventoryPage: React.FC = () => {
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
                                         <input
                                             type="number"
-                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 pl-6 pr-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
+                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 pl-6 pr-4 text-slate-800 dark:text-white font-medium focus:border-blue-500 outline-none transition-all"
                                             value={editingItem.purchase_price}
                                             onChange={e => setEditingItem({ ...editingItem, purchase_price: e.target.value })}
                                         />
@@ -1034,7 +1162,7 @@ const InventoryPage: React.FC = () => {
                                     <label className="section-label">Cantidad Paquete</label>
                                     <input
                                         type="number"
-                                        className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 px-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
+                                        className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 px-4 text-slate-800 dark:text-white font-medium focus:border-blue-500 outline-none transition-all"
                                         value={editingItem.purchase_quantity}
                                         onChange={e => setEditingItem({ ...editingItem, purchase_quantity: e.target.value })}
                                     />
@@ -1048,7 +1176,7 @@ const InventoryPage: React.FC = () => {
                                             key={u}
                                             type="button"
                                             onClick={() => setEditingItem({ ...editingItem, purchase_unit: u })}
-                                            className={`flex-1 py-2 rounded-md text-xs font-bold transition-all ${editingItem.purchase_unit === u ? 'bg-white dark:bg-gray-700 shadow-sm text-secondary' : 'text-gray-400 hover:text-gray-600'}`}
+                                            className={`flex-1 py-2 rounded-md text-xs font-bold transition-all ${editingItem.purchase_unit === u ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-500' : 'text-gray-400 hover:text-gray-600'}`}
                                         >
                                             {u}
                                         </button>
@@ -1058,7 +1186,7 @@ const InventoryPage: React.FC = () => {
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
-                                className="w-full bg-secondary hover:bg-secondary-dark font-bold text-white py-4 rounded-xl shadow-lg shadow-secondary/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                className="w-full bg-blue-500 hover:bg-blue-600 font-bold text-white py-4 rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                             >
                                 {isSubmitting ? <span className="material-symbols-outlined animate-spin">refresh</span> : 'GUARDAR CAMBIOS'}
                             </button>
