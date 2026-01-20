@@ -1,7 +1,39 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { ProjectState, CostItem, InventoryItem, AppSettings, OrganizationSettings } from '../types';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { ProjectState, CostItem, InventoryItem, AppSettings, OrganizationSettings, ThemeName, ThemeConfig } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
+
+// Theme Configurations
+export const THEME_CONFIGS: ThemeConfig[] = [
+    {
+        name: 'default',
+        label: 'Standard',
+        description: 'Minimalista y elegante',
+        icon: 'light_mode',
+        preview: { bg: '#F8F9FB', accent: '#4f46e5', text: '#1e293b' }
+    },
+    {
+        name: 'dark',
+        label: 'Dark Mode',
+        description: 'Optimizado para la noche',
+        icon: 'dark_mode',
+        preview: { bg: '#020617', accent: '#8b5cf6', text: '#f8fafc' }
+    },
+    {
+        name: 'feminine',
+        label: 'Soft Rose',
+        description: 'Sofisticado y elegante',
+        icon: 'favorite',
+        preview: { bg: '#FDF2F8', accent: '#DB2777', text: '#831843' }
+    },
+    {
+        name: 'galaxy',
+        label: 'Liquid Space',
+        description: 'Glassmorphism extremo',
+        icon: 'auto_awesome',
+        preview: { bg: '#0f0f23', accent: '#a855f7', text: '#e2e8f0' }
+    }
+];
 
 interface AppContextType {
     project: ProjectState;
@@ -14,7 +46,7 @@ interface AppContextType {
 
     updateProjectName: (name: string) => void;
     addItem: (item: CostItem) => void;
-    updateItem: (id: string, updatedItem: CostItem) => void;
+    updateItem: (id: string, updates: Partial<CostItem>) => void;
     removeItem: (id: string) => void;
     toggleFactorQ: () => void;
     updateProfitMargin: (margin: number) => void;
@@ -28,6 +60,11 @@ interface AppContextType {
     signInWithEmail: (email: string, password: string) => Promise<any>;
     signUpWithEmail: (email: string, password: string, fullName: string) => Promise<any>;
     signOut: () => Promise<void>;
+    // Theme
+    theme: ThemeName;
+    setTheme: (theme: ThemeName) => void;
+    themeClass: string;
+    isTransitioning: boolean;
 }
 
 const defaultState: ProjectState = {
@@ -61,6 +98,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [settings, setSettings] = useState<AppSettings>(defaultSettings);
     const [organization, setOrganization] = useState<OrganizationSettings>(defaultOrganization);
+
+    // Theme State
+    const [theme, setThemeState] = useState<ThemeName>(() => {
+        const saved = localStorage.getItem('costea-theme');
+        return (saved as ThemeName) || 'default';
+    });
+    const [isTransitioning, setIsTransitioning] = useState(false);
 
     // Auth State
     const [user, setUser] = useState<User | null>(null);
@@ -136,6 +180,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     };
 
+    // Theme Functions
+    const setTheme = useCallback((newTheme: ThemeName) => {
+        setIsTransitioning(true);
+        setTimeout(() => {
+            setThemeState(newTheme);
+            localStorage.setItem('costea-theme', newTheme);
+            setTimeout(() => setIsTransitioning(false), 500);
+        }, 250);
+    }, []);
+
+    // Generate theme class string
+    const themeClass = theme === 'dark' ? 'dark theme-dark' :
+        theme === 'feminine' ? 'theme-feminine' :
+            theme === 'galaxy' ? 'dark theme-galaxy' : 'theme-default';
+
+    // Apply theme to document
+    useEffect(() => {
+        const html = document.documentElement;
+        html.classList.remove('light', 'dark', 'theme-default', 'theme-dark', 'theme-feminine', 'theme-galaxy');
+
+        if (theme === 'dark' || theme === 'galaxy') {
+            html.classList.add('dark');
+        } else {
+            html.classList.add('light');
+        }
+        html.classList.add(`theme-${theme}`);
+    }, [theme]);
+
     const updateSettings = (newSettings: Partial<AppSettings>) => {
         setSettings(prev => ({ ...prev, ...newSettings }));
     };
@@ -152,10 +224,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setProject(prev => ({ ...prev, items: [...prev.items, item] }));
     };
 
-    const updateItem = (id: string, updatedItem: CostItem) => {
+    const updateItem = (id: string, updates: Partial<CostItem>) => {
         setProject(prev => ({
             ...prev,
-            items: prev.items.map(i => i.id === id ? updatedItem : i)
+            items: prev.items.map(i => i.id === id ? { ...i, ...updates } : i)
         }));
     };
 
@@ -207,7 +279,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             signInWithEmail,
             signUpWithEmail,
             signInWithGoogle,
-            signOut
+            signOut,
+            theme,
+            setTheme,
+            themeClass,
+            isTransitioning
         }}>
             {children}
         </AppContext.Provider>

@@ -58,3 +58,18 @@ export interface OrganizationSettings {
     slogan: string;
     logo: string;
 }
+
+// Theme System Types
+export type ThemeName = 'default' | 'dark' | 'feminine' | 'galaxy';
+
+export interface ThemeConfig {
+    name: ThemeName;
+    label: string;
+    description: string;
+    icon: string;
+    preview: {
+        bg: string;
+        accent: string;
+        text: string;
+    };
+}

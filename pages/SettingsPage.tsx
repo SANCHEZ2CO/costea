@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import HeaderSimple from '../components/HeaderSimple';
-import { useApp } from '../context/AppContext';
+import { useApp, THEME_CONFIGS } from '../context/AppContext';
 import LiquidModal from '../components/LiquidModal';
+import { ThemeName } from '../types';
 
 const SettingsPage: React.FC = () => {
     const navigate = useNavigate();
-    const { settings, organization, updateSettings, updateOrganization } = useApp();
+    const { settings, organization, updateSettings, updateOrganization, theme, setTheme } = useApp();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Local state for form handling before saving
@@ -29,7 +30,7 @@ const SettingsPage: React.FC = () => {
 
     const closeModal = () => setModal(prev => ({ ...prev, isOpen: false }));
 
-    // Sync from context if it changes externally (optional, but good practice)
+    // Sync from context if it changes externally
     useEffect(() => {
         setLocalOrg(organization);
         setLocalSettings(settings);
@@ -61,6 +62,10 @@ const SettingsPage: React.FC = () => {
         }
     };
 
+    const handleThemeChange = (newTheme: ThemeName) => {
+        setTheme(newTheme);
+    };
+
     const handleSave = () => {
         updateOrganization(localOrg);
         updateSettings(localSettings);
@@ -73,8 +78,48 @@ const SettingsPage: React.FC = () => {
         });
     };
 
+    // Get theme-specific accent colors
+    const getThemeAccentClasses = () => {
+        switch (theme) {
+            case 'feminine':
+                return {
+                    accent: 'text-pink-500',
+                    accentBg: 'bg-pink-50',
+                    accentBorder: 'border-pink-200',
+                    accentRing: 'ring-pink-500/20',
+                    gradient: 'from-pink-500 to-rose-600'
+                };
+            case 'galaxy':
+                return {
+                    accent: 'text-purple-400',
+                    accentBg: 'bg-purple-900/30',
+                    accentBorder: 'border-purple-500/30',
+                    accentRing: 'ring-purple-500/20',
+                    gradient: 'from-purple-500 to-violet-600'
+                };
+            case 'dark':
+                return {
+                    accent: 'text-violet-400',
+                    accentBg: 'bg-violet-900/30',
+                    accentBorder: 'border-violet-600',
+                    accentRing: 'ring-violet-500/20',
+                    gradient: 'from-violet-500 to-purple-600'
+                };
+            default:
+                return {
+                    accent: 'text-indigo-500',
+                    accentBg: 'bg-indigo-50',
+                    accentBorder: 'border-indigo-200',
+                    accentRing: 'ring-indigo-500/20',
+                    gradient: 'from-indigo-500 to-violet-600'
+                };
+        }
+    };
+
+    const themeAccent = getThemeAccentClasses();
+
     return (
-        <div className="bg-gradient-to-br from-white to-indigo-50 dark:from-background-dark dark:to-neutral-dark min-h-screen text-neutral-dark dark:text-white font-display overflow-hidden flex flex-col">
+        <div className="min-h-screen font-display flex flex-col transition-all duration-500" style={{ backgroundColor: 'var(--theme-bg-primary)', color: 'var(--theme-text-primary)' }}>
             <HeaderSimple showProfile={true} />
 
             <LiquidModal
@@ -86,245 +131,306 @@ const SettingsPage: React.FC = () => {
                 onConfirm={closeModal}
             />
 
-            <main className="flex-1 flex flex-col items-center justify-start relative w-full px-4 overflow-y-auto overflow-x-hidden py-4">
-                <div className="absolute top-1/4 left-0 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-secondary/5 rounded-full blur-3xl -z-10 pointer-events-none"></div>
-                <div className="absolute bottom-0 right-0 translate-x-1/3 translate-y-1/3 w-[500px] h-[500px] bg-primary/10 rounded-full blur-3xl -z-10 pointer-events-none"></div>
+            <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 py-8 flex flex-col gap-8">
 
-                <div className="max-w-4xl w-full flex flex-col gap-4 animate-fade-in-up pb-6">
-                    <div className="flex items-center gap-4 mb-1">
-                        <button onClick={() => navigate(-1)} className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-neutral-dark dark:text-white">
+                {/* Header */}
+                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 w-full md:w-auto">
+                        <button onClick={() => navigate(-1)} className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 border border-transparent hover:border-white/20 transition-all" style={{ color: 'var(--theme-text-secondary)' }}>
                             <span className="material-symbols-outlined">arrow_back</span>
                         </button>
                         <div>
-                            <h2 className="text-2xl md:text-3xl font-bold text-neutral-dark dark:text-white">Ajustes y Configuración</h2>
-                            <p className="text-neutral-gray text-sm md:text-base">Personaliza tu experiencia en COSTEA</p>
+                            <h2 className="text-2xl md:text-3xl font-black tracking-tight" style={{ color: 'var(--theme-text-primary)' }}>Ajustes</h2>
+                            <p className="text-sm font-medium" style={{ color: 'var(--theme-text-secondary)' }}>Personaliza tu negocio y preferencias.</p>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <div className="lg:col-span-2 space-y-4">
-                            {/* Business Profile Section */}
-                            <div className="bg-white/70 dark:bg-white/5 backdrop-blur-md rounded-2xl border border-white/40 dark:border-white/10 shadow-soft p-4 md:p-6">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <span className="material-symbols-outlined text-secondary">storefront</span>
-                                    <h3 className="text-lg font-bold text-neutral-dark dark:text-white">Perfil de Negocio</h3>
-                                </div>
-                                <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-                                    <div className="relative group cursor-pointer" onClick={handleLogoClick}>
-                                        <div className="w-24 h-24 rounded-full bg-gray-100 dark:bg-white/5 border-2 border-dashed border-gray-300 dark:border-white/20 flex items-center justify-center overflow-hidden hover:border-secondary transition-colors relative">
-                                            {localOrg.logo ? (
-                                                <img alt="Logo actual" className="h-full w-full object-cover" src={localOrg.logo} />
-                                            ) : (
-                                                <span className="material-symbols-outlined text-gray-400 text-3xl">add_photo_alternate</span>
-                                            )}
+                    <button
+                        onClick={handleSave}
+                        disabled={!isDirty}
+                        className={`px-8 py-3 rounded-xl font-bold flex items-center gap-2 transition-all duration-200 shadow-lg ${isDirty ? `bg-gradient-to-r ${themeAccent.gradient} text-white hover:shadow-xl active:scale-95 cursor-pointer` : 'bg-slate-200 dark:bg-slate-700 text-slate-400 shadow-none cursor-not-allowed'}`}
+                    >
+                        <span className="material-symbols-outlined text-[20px]">save</span>
+                        Guardar
+                    </button>
+                </div>
 
-                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <span className="material-symbols-outlined text-white">edit</span>
-                                            </div>
+                {/* Theme Selector Section */}
+                <section className="glass-card rounded-3xl p-6 border transition-all duration-500" style={{ backgroundColor: 'var(--theme-bg-card)', borderColor: 'var(--theme-border)' }}>
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className={`size-10 rounded-xl ${themeAccent.accentBg} ${themeAccent.accent} flex items-center justify-center`}>
+                            <span className="material-symbols-outlined">palette</span>
+                        </div>
+                        <div>
+                            <h3 className="font-bold" style={{ color: 'var(--theme-text-primary)' }}>Apariencia</h3>
+                            <p className="text-xs font-medium" style={{ color: 'var(--theme-text-secondary)' }}>Selecciona el tema visual de la aplicación</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {THEME_CONFIGS.map((themeConfig) => (
+                            <button
+                                key={themeConfig.name}
+                                onClick={() => handleThemeChange(themeConfig.name)}
+                                className={`theme-selector-card relative group rounded-2xl p-4 border-2 transition-all duration-300 overflow-hidden ${theme === themeConfig.name
+                                        ? 'border-[var(--theme-accent)] ring-4 ring-[var(--theme-accent)]/20 selected'
+                                        : 'border-transparent hover:border-white/20'
+                                    }`}
+                                style={{
+                                    backgroundColor: themeConfig.preview.bg,
+                                }}
+                            >
+                                {/* Theme Preview */}
+                                <div className="relative z-10 flex flex-col items-center gap-3">
+                                    {/* Icon Circle */}
+                                    <div
+                                        className="w-12 h-12 rounded-full flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
+                                        style={{
+                                            backgroundColor: themeConfig.preview.accent,
+                                            boxShadow: themeConfig.name === 'galaxy' ? `0 0 20px ${themeConfig.preview.accent}60` : 'none'
+                                        }}
+                                    >
+                                        <span
+                                            className="material-symbols-outlined text-white text-[24px]"
+                                            style={{
+                                                filter: themeConfig.name === 'galaxy' ? 'drop-shadow(0 0 8px white)' : 'none'
+                                            }}
+                                        >
+                                            {themeConfig.icon}
+                                        </span>
+                                    </div>
+
+                                    {/* Theme Name */}
+                                    <div className="text-center">
+                                        <h4
+                                            className="font-bold text-sm"
+                                            style={{ color: themeConfig.preview.text }}
+                                        >
+                                            {themeConfig.label}
+                                        </h4>
+                                        <p
+                                            className="text-[10px] font-medium mt-0.5 opacity-70"
+                                            style={{ color: themeConfig.preview.text }}
+                                        >
+                                            {themeConfig.description}
+                                        </p>
+                                    </div>
+
+                                    {/* Selected Indicator */}
+                                    {theme === themeConfig.name && (
+                                        <div
+                                            className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
+                                            style={{ backgroundColor: themeConfig.preview.accent }}
+                                        >
+                                            <span className="material-symbols-outlined text-white text-[14px]">check</span>
                                         </div>
-                                        <span className="text-xs text-center block mt-2 text-neutral-gray">Editar Logo</span>
+                                    )}
+                                </div>
+
+                                {/* Galaxy Theme Special Glow */}
+                                {themeConfig.name === 'galaxy' && (
+                                    <>
+                                        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-transparent to-blue-900/20 pointer-events-none" />
+                                        <div className="absolute top-2 left-3 w-1 h-1 bg-white rounded-full opacity-60" />
+                                        <div className="absolute top-5 right-4 w-0.5 h-0.5 bg-white rounded-full opacity-40" />
+                                        <div className="absolute bottom-6 left-5 w-0.5 h-0.5 bg-white rounded-full opacity-50" />
+                                        <div className="absolute bottom-3 right-6 w-1 h-1 bg-white rounded-full opacity-30" />
+                                    </>
+                                )}
+
+                                {/* Feminine Theme Soft Gradient */}
+                                {themeConfig.name === 'feminine' && (
+                                    <div className="absolute inset-0 bg-gradient-to-br from-pink-100/50 via-transparent to-rose-100/30 pointer-events-none" />
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </section>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                    {/* Left Column */}
+                    <div className="md:col-span-2 flex flex-col gap-6">
+
+                        {/* Business Profile Card */}
+                        <section className="glass-card rounded-3xl p-6 border relative overflow-hidden group transition-all duration-500" style={{ backgroundColor: 'var(--theme-bg-card)', borderColor: 'var(--theme-border)' }}>
+
+                            <div className="flex items-center gap-3 mb-6">
+                                <span className={`material-symbols-outlined ${themeAccent.accent}`}>storefront</span>
+                                <h3 className="font-bold" style={{ color: 'var(--theme-text-primary)' }}>Perfil de Negocio</h3>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row items-start gap-6 relative z-10">
+                                <div className="relative group/logo cursor-pointer shrink-0" onClick={handleLogoClick}>
+                                    <div className={`w-24 h-24 rounded-2xl border-2 border-dashed flex items-center justify-center overflow-hidden transition-all ${themeAccent.accentBorder} hover:border-[var(--theme-accent)]`} style={{ backgroundColor: 'var(--theme-bg-secondary)' }}>
+                                        {localOrg.logo ? (
+                                            <img alt="Logo" className="h-full w-full object-cover" src={localOrg.logo} />
+                                        ) : (
+                                            <span className="material-symbols-outlined text-3xl transition-colors" style={{ color: 'var(--theme-text-secondary)' }}>add_photo_alternate</span>
+                                        )}
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/logo:opacity-100 transition-opacity">
+                                            <span className="material-symbols-outlined text-white">edit</span>
+                                        </div>
+                                    </div>
+                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleLogoChange} />
+                                </div>
+
+                                <div className="flex-1 w-full space-y-4">
+                                    <div className="group/input">
+                                        <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 ml-1" style={{ color: 'var(--theme-text-secondary)' }}>Nombre del Negocio</label>
                                         <input
-                                            type="file"
-                                            ref={fileInputRef}
-                                            className="hidden"
-                                            accept="image/*"
-                                            onChange={handleLogoChange}
+                                            className={`w-full border rounded-xl px-4 py-3 font-bold focus:ring-2 ${themeAccent.accentRing} transition-all outline-none`}
+                                            style={{ backgroundColor: 'var(--theme-bg-secondary)', borderColor: 'var(--theme-border)', color: 'var(--theme-text-primary)' }}
+                                            placeholder="Ej: Sabor Casero"
+                                            type="text"
+                                            value={localOrg.name}
+                                            onChange={(e) => handleOrgChange('name', e.target.value)}
                                         />
                                     </div>
-                                    <div className="flex-1 w-full space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-neutral-gray mb-1">Nombre del Negocio</label>
-                                            <input
-                                                className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-neutral-dark dark:text-white focus:ring-2 focus:ring-secondary/50 focus:border-secondary transition-all outline-none"
-                                                placeholder="Ingresa el nombre de tu empresa"
-                                                type="text"
-                                                value={localOrg.name}
-                                                onChange={(e) => handleOrgChange('name', e.target.value)}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-neutral-gray mb-1">Eslogan (Opcional)</label>
-                                            <input
-                                                className="w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-neutral-dark dark:text-white focus:ring-2 focus:ring-secondary/50 focus:border-secondary transition-all outline-none"
-                                                type="text"
-                                                value={localOrg.slogan}
-                                                onChange={(e) => handleOrgChange('slogan', e.target.value)}
-                                            />
-                                        </div>
+                                    <div className="group/input">
+                                        <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 ml-1" style={{ color: 'var(--theme-text-secondary)' }}>Eslogan</label>
+                                        <input
+                                            className={`w-full border rounded-xl px-4 py-3 font-medium focus:ring-2 ${themeAccent.accentRing} transition-all outline-none`}
+                                            style={{ backgroundColor: 'var(--theme-bg-secondary)', borderColor: 'var(--theme-border)', color: 'var(--theme-text-primary)' }}
+                                            placeholder="Ej: Calidad que enamora"
+                                            type="text"
+                                            value={localOrg.slogan}
+                                            onChange={(e) => handleOrgChange('slogan', e.target.value)}
+                                        />
                                     </div>
                                 </div>
                             </div>
+                        </section>
 
-                            {/* General Config Section */}
-                            <div className="bg-white/70 dark:bg-white/5 backdrop-blur-md rounded-2xl border border-white/40 dark:border-white/10 shadow-soft p-4 md:p-6">
-                                <div className="flex items-center gap-4 mb-4">
-                                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary dark:text-white dark:bg-white/10">
-                                        <span className="material-symbols-outlined text-2xl">tune</span>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-bold text-neutral-dark dark:text-white leading-tight">Configuración General</h3>
-                                        <p className="text-sm text-neutral-gray mt-0.5">Preferencias de moneda e idioma</p>
+                        {/* General & Currency */}
+                        <section className="glass-card rounded-3xl p-6 border transition-all duration-500" style={{ backgroundColor: 'var(--theme-bg-card)', borderColor: 'var(--theme-border)' }}>
+                            <div className="flex items-center gap-3 mb-6">
+                                <span className={`material-symbols-outlined ${theme === 'feminine' ? 'text-pink-400' : 'text-teal-500'}`}>settings</span>
+                                <h3 className="font-bold" style={{ color: 'var(--theme-text-primary)' }}>Regionalización</h3>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 ml-1" style={{ color: 'var(--theme-text-secondary)' }}>Moneda</label>
+                                    <div className="relative">
+                                        <select
+                                            className="w-full appearance-none border rounded-xl px-4 py-3 pl-11 font-bold cursor-pointer outline-none"
+                                            style={{ backgroundColor: 'var(--theme-bg-secondary)', borderColor: 'var(--theme-border)', color: 'var(--theme-text-primary)' }}
+                                            value={localSettings.currency}
+                                            onChange={(e) => handleSettingsChange('currency', e.target.value)}
+                                        >
+                                            <option value="COP $">COP $ (Peso Colombiano)</option>
+                                            <option value="USD $">USD $ (Dólar)</option>
+                                            <option value="EUR €">EUR € (Euro)</option>
+                                        </select>
+                                        <span className={`material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none ${theme === 'feminine' ? 'text-pink-400' : 'text-teal-500'}`}>payments</span>
+                                        <span className="material-symbols-outlined absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-sm" style={{ color: 'var(--theme-text-secondary)' }}>expand_more</span>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="group">
-                                        <label className="block text-sm font-bold text-neutral-gray mb-2 ml-1 uppercase tracking-wide text-[10px]">Moneda Principal</label>
-                                        <div className="relative">
-                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-gray group-focus-within:text-primary transition-colors pointer-events-none z-10 flex items-center">
-                                                <span className="material-symbols-outlined text-[20px]">payments</span>
-                                            </div>
-                                            <select
-                                                className="w-full appearance-none bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl pl-12 pr-10 py-4 text-neutral-dark dark:text-white font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all outline-none cursor-pointer hover:bg-white dark:hover:bg-white/5 hover:border-gray-300 dark:hover:border-white/20 hover:shadow-sm bg-none"
-                                                value={localSettings.currency}
-                                                onChange={(e) => handleSettingsChange('currency', e.target.value)}
-                                            >
-                                                <option value="COP $">🇨🇴 COP $ (Peso Colombiano)</option>
-                                                <option value="USD $">🇺🇸 USD $ (Dólar Americano)</option>
-                                                <option value="EUR €">🇪🇺 EUR € (Euro)</option>
-                                            </select>
-                                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-gray group-hover:text-primary transition-colors flex items-center">
-                                                <span className="material-symbols-outlined text-[20px]">expand_more</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="group">
-                                        <label className="block text-sm font-bold text-neutral-gray mb-2 ml-1 uppercase tracking-wide text-[10px]">Idioma</label>
-                                        <div className="relative">
-                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-gray group-focus-within:text-primary transition-colors pointer-events-none z-10 flex items-center">
-                                                <span className="material-symbols-outlined text-[20px]">language</span>
-                                            </div>
-                                            <select
-                                                className="w-full appearance-none bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl pl-12 pr-10 py-4 text-neutral-dark dark:text-white font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all outline-none cursor-pointer hover:bg-white dark:hover:bg-white/5 hover:border-gray-300 dark:hover:border-white/20 hover:shadow-sm bg-none"
-                                                value={localSettings.language}
-                                                onChange={(e) => handleSettingsChange('language', e.target.value)}
-                                            >
-                                                <option value="Español">🇪🇸 Español</option>
-                                                <option value="English">🇺🇸 English</option>
-                                            </select>
-                                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-gray group-hover:text-primary transition-colors flex items-center">
-                                                <span className="material-symbols-outlined text-[20px]">expand_more</span>
-                                            </div>
-                                        </div>
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 ml-1" style={{ color: 'var(--theme-text-secondary)' }}>Idioma</label>
+                                    <div className="relative">
+                                        <select
+                                            className="w-full appearance-none border rounded-xl px-4 py-3 pl-11 font-bold cursor-pointer outline-none"
+                                            style={{ backgroundColor: 'var(--theme-bg-secondary)', borderColor: 'var(--theme-border)', color: 'var(--theme-text-primary)' }}
+                                            value={localSettings.language}
+                                            onChange={(e) => handleSettingsChange('language', e.target.value)}
+                                        >
+                                            <option value="Español">Español</option>
+                                            <option value="English">English</option>
+                                        </select>
+                                        <span className={`material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none ${theme === 'feminine' ? 'text-pink-400' : 'text-teal-500'}`}>language</span>
+                                        <span className="material-symbols-outlined absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-sm" style={{ color: 'var(--theme-text-secondary)' }}>expand_more</span>
                                     </div>
                                 </div>
                             </div>
+                        </section>
 
-
-                            {/* Labor Cost Section - MOVED HERE */}
-                            <div className="bg-white/70 dark:bg-white/5 backdrop-blur-md rounded-2xl border border-white/40 dark:border-white/10 shadow-soft p-4 md:p-6 flex flex-col relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-2xl -z-10"></div>
-                                <div className="flex items-center gap-4 mb-4">
-                                    <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center text-green-600 dark:text-green-400">
-                                        <span className="material-symbols-outlined text-[24px]">engineering</span>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-bold text-neutral-dark dark:text-white leading-tight">Mano de Obra</h3>
-                                        <p className="text-sm text-neutral-gray mt-0.5">Base salarial para calcular tus tiempos</p>
-                                    </div>
+                        {/* Labor Cost Section */}
+                        <section className="glass-card rounded-3xl p-6 border relative overflow-hidden transition-all duration-500" style={{ backgroundColor: 'var(--theme-bg-card)', borderColor: 'var(--theme-border)' }}>
+                            <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-2xl -z-10" style={{ backgroundColor: theme === 'feminine' ? 'rgba(236, 72, 153, 0.1)' : 'rgba(59, 130, 246, 0.1)' }}></div>
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className={`size-8 rounded-full ${theme === 'feminine' ? 'bg-pink-50 text-pink-500' : 'bg-blue-50 text-blue-500'} flex items-center justify-center`}>
+                                    <span className="material-symbols-outlined text-[18px]">engineering</span>
                                 </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                                    <div>
-                                        <p className="text-sm text-neutral-dark dark:text-gray-300 font-medium leading-relaxed mb-2">
-                                            Define el salario mensual base. Se usará para calcular automáticamente cuánto vale cada minuto de tu trabajo en las recetas.
-                                        </p>
-                                        <p className="text-[10px] text-gray-400 italic">
-                                            *Incluye todas las prestaciones de ley y seguridad social si aplica.
-                                        </p>
-                                    </div>
-                                    <div className="group">
-                                        <label className="block text-sm font-bold text-neutral-gray mb-2 ml-1 uppercase tracking-wide text-[10px]">Salario Mensual</label>
-                                        <div className="relative">
-                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-gray group-focus-within:text-primary transition-colors pointer-events-none z-10 flex items-center">
-                                                <span className="material-symbols-outlined text-[20px]">attach_money</span>
-                                            </div>
-                                            <input
-                                                className="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl pl-12 pr-4 py-4 text-neutral-dark dark:text-white font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all outline-none hover:bg-white dark:hover:bg-white/5 hover:border-gray-300 dark:hover:border-white/20 hover:shadow-sm"
-                                                type="number"
-                                                min="0"
-                                                placeholder="Ej: 2000000"
-                                                value={localSettings.monthlySalary}
-                                                onChange={(e) => handleSettingsChange('monthlySalary', parseFloat(e.target.value) || 0)}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
+                                <h3 className="font-bold" style={{ color: 'var(--theme-text-primary)' }}>Mano de Obra Base</h3>
                             </div>
-                        </div>
 
-                        <div className="lg:col-span-1">
-                            {/* Factor Q Section */}
-                            <div className="bg-gradient-to-br from-white to-indigo-50/50 dark:from-neutral-dark dark:to-secondary/20 backdrop-blur-md rounded-2xl border-2 border-secondary/20 dark:border-secondary/30 shadow-glow p-4 md:p-6 flex flex-col relative overflow-hidden">
-                                <div className="absolute -top-10 -right-10 w-32 h-32 bg-secondary/10 rounded-full blur-2xl"></div>
-                                <div className="flex items-center gap-3 mb-4 z-10">
-                                    <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
-                                        <span className="material-symbols-outlined">shield_moon</span>
-                                    </div>
-                                    <h3 className="text-xl font-extrabold text-secondary dark:text-indigo-300">Factor Q</h3>
-                                </div>
-                                <p className="text-sm text-neutral-dark dark:text-gray-200 font-medium leading-relaxed mb-6 z-10">
-                                    Conocido como el "Margen de Error". Este porcentaje se añade automáticamente al final de cada costeo.
+                            <div className="flex flex-col sm:flex-row items-center gap-6">
+                                <p className="text-sm font-medium flex-1" style={{ color: 'var(--theme-text-secondary)' }}>
+                                    Este valor se usará para calcular el costo por minuto de tu trabajo en cada receta. <br />
+                                    <span className="text-xs mt-1 block" style={{ opacity: 0.7 }}>*Incluye salario + prestaciones.</span>
                                 </p>
-                                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4 border border-blue-100 dark:border-blue-800/30">
-                                    <div className="flex gap-2">
-                                        <span className="material-symbols-outlined text-primary text-sm mt-0.5">info</span>
-                                        <p className="text-xs text-neutral-gray dark:text-blue-200 leading-snug">
-                                            Cubre gastos pequeños difíciles de calcular individualmente como: <span className="font-bold text-primary dark:text-blue-300">sal, servilletas, cinta adhesiva o gas.</span>
-                                        </p>
+                                <div className="w-full sm:w-48">
+                                    <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 ml-1" style={{ color: 'var(--theme-text-secondary)' }}>Salario Mensual</label>
+                                    <div className="relative">
+                                        <span className={`material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-[20px] ${theme === 'feminine' ? 'text-pink-500' : 'text-blue-500'}`}>attach_money</span>
+                                        <input
+                                            className="w-full border rounded-xl px-4 py-3 pl-10 font-black text-right outline-none"
+                                            style={{ backgroundColor: 'var(--theme-bg-secondary)', borderColor: 'var(--theme-border)', color: 'var(--theme-text-primary)' }}
+                                            type="number"
+                                            min="0"
+                                            value={localSettings.monthlySalary}
+                                            onChange={(e) => handleSettingsChange('monthlySalary', parseFloat(e.target.value) || 0)}
+                                        />
                                     </div>
-                                </div>
-
-                                <div className="flex flex-col gap-4 mb-6 z-10">
-                                    <div className="group">
-                                        <label className="block text-sm font-bold text-neutral-gray mb-2 ml-1 uppercase tracking-wide text-[10px]">Porcentaje (%)</label>
-                                        <div className="relative">
-                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-gray group-focus-within:text-primary transition-colors pointer-events-none z-10 flex items-center">
-                                                <span className="material-symbols-outlined text-[20px]">percent</span>
-                                            </div>
-                                            <input
-                                                className="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl pl-12 pr-4 py-4 text-neutral-dark dark:text-white font-medium focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all outline-none hover:bg-white dark:hover:bg-white/5 hover:border-gray-300 dark:hover:border-white/20 hover:shadow-sm"
-                                                type="number"
-                                                min="0"
-                                                max="100"
-                                                value={localSettings.factorQPercentage}
-                                                onChange={(e) => handleSettingsChange('factorQPercentage', parseFloat(e.target.value) || 0)}
-                                            />
-                                        </div>
-                                    </div>
-
-                                </div>
-
-                                <div className="mt-auto pt-4 border-t border-gray-100 dark:border-white/10">
-                                    <p className="text-xs text-center text-neutral-gray italic">
-                                        "Un buen Factor Q protege tu ganancia real."
-                                    </p>
                                 </div>
                             </div>
+                        </section>
 
-                        </div>
                     </div>
 
-                    <div className="flex justify-end items-center gap-4 mt-4 pt-6 border-t border-gray-200/50 dark:border-white/10">
-                        <button
-                            onClick={() => navigate(-1)}
-                            className="px-6 py-2.5 rounded-xl text-neutral-gray font-semibold hover:text-neutral-dark dark:hover:text-white transition-colors"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            disabled={!isDirty}
-                            className={`px-8 py-2.5 rounded-xl bg-gradient-to-r from-secondary to-primary text-white font-bold shadow-lg shadow-indigo-500/20 flex items-center gap-2 transition-all duration-200 ${isDirty ? 'hover:from-[#502bb5] hover:to-blue-600 transform hover:-translate-y-0.5 cursor-pointer' : 'opacity-70 cursor-not-allowed'}`}
-                        >
-                            <span className="material-symbols-outlined text-[20px]">save</span>
-                            Guardar Cambios
-                        </button>
+                    {/* Right Column */}
+                    <div className="md:col-span-1">
+
+                        {/* Factor Q Card */}
+                        <section className="glass-card rounded-3xl p-6 border h-full flex flex-col relative overflow-hidden group transition-all duration-500" style={{ backgroundColor: 'var(--theme-bg-card)', borderColor: 'var(--theme-border)' }}>
+
+                            {/* Decorative Blob */}
+                            <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl group-hover:opacity-100 transition-colors duration-500" style={{ backgroundColor: theme === 'feminine' ? 'rgba(236, 72, 153, 0.15)' : 'rgba(168, 85, 247, 0.15)' }}></div>
+
+                            <div className="flex items-center gap-3 mb-6 relative z-10">
+                                <div className={`size-10 rounded-xl ${theme === 'feminine' ? 'bg-pink-50 text-pink-600' : 'bg-purple-50 text-purple-600'} flex items-center justify-center`}>
+                                    <span className="material-symbols-outlined">science</span>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold leading-none" style={{ color: 'var(--theme-text-primary)' }}>Factor Q</h3>
+                                    <p className={`text-[10px] uppercase font-bold tracking-wider mt-1 ${theme === 'feminine' ? 'text-pink-500' : 'text-purple-500'}`}>Margen de Error</p>
+                                </div>
+                            </div>
+
+                            <p className="text-sm font-medium mb-8 flex-1 relative z-10" style={{ color: 'var(--theme-text-secondary)' }}>
+                                Un porcentaje de seguridad para cubrir gastos "invisibles" (sal, condimentos, mermas no calculadas).
+                            </p>
+
+                            <div className="mb-8 relative z-10">
+                                <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 ml-1" style={{ color: 'var(--theme-text-secondary)' }}>Porcentaje Global</label>
+                                <div className="relative flex items-center">
+                                    <input
+                                        className={`w-full border rounded-2xl px-4 py-4 text-center text-4xl font-black ${theme === 'feminine' ? 'text-pink-600 border-pink-100 focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10' : 'text-purple-600 border-purple-100 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10'} outline-none transition-all`}
+                                        style={{ backgroundColor: 'var(--theme-bg-secondary)' }}
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        value={localSettings.factorQPercentage}
+                                        onChange={(e) => handleSettingsChange('factorQPercentage', parseFloat(e.target.value) || 0)}
+                                    />
+                                    <span className={`absolute right-6 text-xl font-bold pointer-events-none ${theme === 'feminine' ? 'text-pink-300' : 'text-purple-300'}`}>%</span>
+                                </div>
+                            </div>
+
+                            <div className={`rounded-xl p-4 border relative z-10 ${theme === 'feminine' ? 'bg-pink-50 border-pink-100' : 'bg-purple-50 dark:bg-purple-900/20 border-purple-100 dark:border-purple-800/30'}`}>
+                                <div className={`flex gap-2 ${theme === 'feminine' ? 'text-pink-700' : 'text-purple-700 dark:text-purple-300'}`}>
+                                    <span className="material-symbols-outlined text-[18px] shrink-0">info</span>
+                                    <p className="text-xs font-bold leading-tight">Recomendamos mantenerlo entre el 3% y el 5% para no inflar precios.</p>
+                                </div>
+                            </div>
+                        </section>
+
                     </div>
                 </div>
+
             </main>
-            <footer className="w-full py-2 text-center text-sm text-neutral-gray/60 dark:text-slate-500 mt-auto">
-                <p>© 2026 COSTEA • Hecho con <span className="text-red-400">❤</span> para emprendedores</p>
-            </footer>
         </div>
     );
 };

@@ -24,44 +24,85 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <>{children}</>;
 };
 
+// Theme Wrapper Component
+const ThemeWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { theme, isTransitioning } = useApp();
+
+    return (
+        <>
+            {/* Smooth Transition Overlay */}
+            <div className={`theme-transition-overlay ${isTransitioning ? 'active' : ''}`} />
+
+            {/* Galaxy Theme Background Effects */}
+            {theme === 'galaxy' && (
+                <>
+                    <div className="galaxy-bg" />
+                    <div className="galaxy-stars" />
+                </>
+            )}
+
+            {children}
+        </>
+    );
+};
+
+// Shooting Stars Component (Only for Galaxy Theme on Dashboard/Home)
+export const ShootingStars: React.FC = () => {
+    const { theme } = useApp();
+
+    if (theme !== 'galaxy') return null;
+
+    return (
+        <div className="shooting-stars-container">
+            <div className="shooting-star" />
+            <div className="shooting-star" />
+            <div className="shooting-star" />
+            <div className="shooting-star" />
+            <div className="shooting-star" />
+        </div>
+    );
+};
+
 const App: React.FC = () => {
     return (
         <AppProvider>
             <HashRouter>
-                <div className="relative">
-                    <Routes>
-                        {/* Public Routes */}
-                        <Route path="/" element={<LoginPage />} />
-                        <Route path="/login" element={<LoginPage />} />
+                <ThemeWrapper>
+                    <div className="relative">
+                        <Routes>
+                            {/* Public Routes */}
+                            <Route path="/" element={<LoginPage />} />
+                            <Route path="/login" element={<LoginPage />} />
 
-                        {/* Protected Routes */}
-                        <Route path="/home" element={
-                            <ProtectedRoute>
-                                <HomePage />
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/costing-engine" element={
-                            <ProtectedRoute>
-                                <CostingEnginePage />
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/results" element={
-                            <ProtectedRoute>
-                                <ResultsPage />
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/inventory" element={
-                            <ProtectedRoute>
-                                <InventoryPage />
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/settings" element={
-                            <ProtectedRoute>
-                                <SettingsPage />
-                            </ProtectedRoute>
-                        } />
-                    </Routes>
-                </div>
+                            {/* Protected Routes */}
+                            <Route path="/home" element={
+                                <ProtectedRoute>
+                                    <HomePage />
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/costing-engine" element={
+                                <ProtectedRoute>
+                                    <CostingEnginePage />
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/results" element={
+                                <ProtectedRoute>
+                                    <ResultsPage />
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/inventory" element={
+                                <ProtectedRoute>
+                                    <InventoryPage />
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/settings" element={
+                                <ProtectedRoute>
+                                    <SettingsPage />
+                                </ProtectedRoute>
+                            } />
+                        </Routes>
+                    </div>
+                </ThemeWrapper>
             </HashRouter>
         </AppProvider>
     );

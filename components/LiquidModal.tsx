@@ -55,57 +55,74 @@ const LiquidModal: React.FC<LiquidModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-background-light/60 dark:bg-background-dark/80 backdrop-blur-xl transition-opacity animate-[fadeIn_0.3s_ease-out]"
+                className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl transition-opacity animate-[fadeIn_0.5s_ease-out]"
                 onClick={onClose}
             ></div>
 
-            {/* Modal Content - Liquid Glass Style */}
-            <div className="relative w-full max-w-md bg-white/70 dark:bg-slate-900/60 backdrop-blur-2xl rounded-3xl p-8 border border-white/40 dark:border-white/10 shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] animate-[scaleIn_0.3s_cubic-bezier(0.16,1,0.3,1)] overflow-hidden">
+            {/* Modal Container with AI Arc Glow */}
+            <div className="relative w-full max-w-sm group animate-[scaleIn_0.4s_cubic-bezier(0.16,1,0.3,1)]">
+                {/* AI Arc Glow Effect */}
+                <div className="absolute inset-[-2px] rounded-[34px] overflow-hidden opacity-100">
+                    <div
+                        className={`absolute inset-[-100%] bg-[conic-gradient(from_var(--shimmer-angle),${type === 'error'
+                            ? "theme('colors.red.400'),theme('colors.pink.500'),theme('colors.red.600')"
+                            : type === 'success'
+                                ? "theme('colors.green.400'),theme('colors.emerald.500'),theme('colors.green.600')"
+                                : type === 'warning'
+                                    ? "theme('colors.orange.400'),theme('colors.amber.500'),theme('colors.orange.600')"
+                                    : "theme('colors.blue.400'),theme('colors.indigo.500'),theme('colors.blue.600')"
+                            },${type === 'error' ? "theme('colors.red.400')" : type === 'success' ? "theme('colors.green.400')" : type === 'warning' ? "theme('colors.orange.400')" : "theme('colors.blue.400')"
+                            })] animate-[spin_4s_linear_infinite] blur-md will-change-transform`}
+                        style={{ '--shimmer-angle': '0deg' } as React.CSSProperties}
+                    />
+                </div>
 
-                {/* Decor: Background Gradients */}
-                <div className={`absolute -top-20 -right-20 w-40 h-40 rounded-full blur-[60px] opacity-40 ${type === 'error' ? 'bg-red-500' : 'bg-secondary'}`}></div>
-                <div className={`absolute -bottom-20 -left-20 w-40 h-40 rounded-full blur-[60px] opacity-40 ${type === 'error' ? 'bg-red-500' : 'bg-primary'}`}></div>
+                <div className="relative bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-2xl border border-white/40 dark:border-white/10 overflow-hidden flex flex-col items-center text-center">
 
-                <div className="relative z-10 flex flex-col items-center text-center">
                     {/* Icon */}
-                    <div className={`mb-6 p-4 rounded-full border-2 shadow-inner backdrop-blur-sm ${getColorClass()}`}>
-                        <span className="material-symbols-outlined text-4xl font-bold">
+                    <div className={`mb-6 size-20 rounded-[24px] flex items-center justify-center shadow-inner border transition-all ${getColorClass()} relative group`}>
+                        <div className="absolute inset-0 bg-white/20 dark:bg-white/5 rounded-[24px] blur-sm opacity-50" />
+                        <span className="material-symbols-outlined text-4xl font-black relative z-10 transition-transform group-hover:scale-110">
                             {getIcon()}
                         </span>
                     </div>
 
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-3">
+                    <h3 className="text-2xl font-black text-slate-800 dark:text-white mb-2 tracking-tighter uppercase">
                         {title}
                     </h3>
 
-                    <p className="text-slate-600 dark:text-slate-300 mb-8 leading-relaxed">
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-8 leading-relaxed max-w-[280px]">
                         {message}
                     </p>
 
-                    <div className="flex gap-4 w-full justify-center">
+                    <div className="flex flex-col gap-3 w-full">
+                        <button
+                            onClick={onConfirm || onClose}
+                            className={`group relative overflow-hidden py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 text-white
+                                ${type === 'error'
+                                    ? 'bg-red-600 shadow-red-500/30'
+                                    : type === 'success'
+                                        ? 'bg-green-600 shadow-green-500/30'
+                                        : 'bg-slate-900 shadow-indigo-500/20'
+                                }
+                            `}
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                            {confirmText}
+                            <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                        </button>
+
                         {showCancel && (
                             <button
                                 onClick={onClose}
-                                className="px-6 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-bold hover:bg-gray-100 dark:hover:bg-white/5 transition-all w-full"
+                                className="py-4 rounded-2xl font-black text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-amber-200 transition-all uppercase tracking-[0.2em]"
                             >
                                 {cancelText}
                             </button>
                         )}
-                        <button
-                            onClick={onConfirm || onClose}
-                            className={`px-6 py-3 rounded-xl text-white font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all w-full flex items-center justify-center gap-2
-                        ${type === 'error'
-                                    ? 'bg-gradient-to-r from-red-500 to-red-600 shadow-red-500/30'
-                                    : 'bg-gradient-to-r from-primary to-secondary shadow-primary/30'
-                                }
-                    `}
-                        >
-                            {confirmText}
-                            <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                        </button>
                     </div>
                 </div>
             </div>

@@ -5,154 +5,53 @@ import HeaderSimple from '../components/HeaderSimple';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../constants';
 import { InventoryItem } from '../types';
-import LiquidLoader from '../components/LiquidLoader';
 import LiquidModal from '../components/LiquidModal';
+import IngredientModal from '../components/Inventory/IngredientModal';
+import RecipeModal from '../components/Inventory/RecipeModal';
 
 const InventoryPage: React.FC = () => {
     const navigate = useNavigate();
-    const { inventory, resetProject, user } = useApp();
-    const [filterType, setFilterType] = useState<'PRODUCTO' | 'RECETA' | 'INSUMO'>('PRODUCTO'); // Added INSUMO
+    const { resetProject, user } = useApp();
+    const [filterType, setFilterType] = useState<'PRODUCTO' | 'RECETA' | 'INSUMO'>('PRODUCTO');
 
-    // Supabase State
+    // Supabase Data State
     const [ingredients, setIngredients] = useState<any[]>([]);
-    const [dishes, setDishes] = useState<any[]>([]); // New state for dishes
+    const [dishes, setDishes] = useState<any[]>([]);
     const [loadingData, setLoadingData] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [newIng, setNewIng] = useState({ name: '', price: '', qty: '', unit: 'Und' });
 
-    // Recipe Builder State (New)
-    const [recipeName, setRecipeName] = useState('');
-    const [tempRecipeIngredients, setTempRecipeIngredients] = useState<any[]>([]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState<any[]>([]);
-    const [selectedIngredient, setSelectedIngredient] = useState<any | null>(null);
-    const [isSearching, setIsSearching] = useState(false);
-    const [useQty, setUseQty] = useState('');
-    const [useUnit, setUseUnit] = useState('Und');
-    const [manualPrice, setManualPrice] = useState('');
-    const [manualYield, setManualYield] = useState('');
+    // Modal Visibility States
+    const [showNewRecipeModal, setShowNewRecipeModal] = useState(false);
+    const [showNewIngredientModal, setShowNewIngredientModal] = useState(false);
 
-    // Modal & Action State
-    const [editingItem, setEditingItem] = useState<any | null>(null);
-    const [editingItemDish, setEditingItemDish] = useState<any | null>(null);
-    const [editingDishIngredients, setEditingDishIngredients] = useState<any[]>([]);
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ id: string, name: string, type: 'INSUMO' | 'PRODUCTO' | 'RECETA' } | null>(null);
+    // Editing States
+    const [editingIngredient, setEditingIngredient] = useState<any | null>(null);
+    const [editingRecipe, setEditingRecipe] = useState<any | null>(null);
 
-    // Edit Modal Search State
-    const [editSearchQuery, setEditSearchQuery] = useState('');
-    const [isSearchingEdit, setIsSearchingEdit] = useState(false);
-    const [editSearchResults, setEditSearchResults] = useState<any[]>([]);
-    const [editSelectedIng, setEditSelectedIng] = useState<any | null>(null);
-    const [editUseQty, setEditUseQty] = useState('');
-
-    // List Filter Search State (for filtering displayed items)
+    // Filter / Search in List
     const [productSearchFilter, setProductSearchFilter] = useState('');
     const [recipeSearchFilter, setRecipeSearchFilter] = useState('');
     const [ingredientSearchFilter, setIngredientSearchFilter] = useState('');
 
-    // Creation Modal States (Pop-ups)
-    const [showNewRecipeModal, setShowNewRecipeModal] = useState(false);
-    const [showNewIngredientModal, setShowNewIngredientModal] = useState(false);
+    // Delete Confirmation Logic
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ id: string, name: string, type: 'INSUMO' | 'PRODUCTO' | 'RECETA' } | null>(null);
 
-    // Generic Alert Modal State
+    // Generic Alerts
     const [alertModal, setAlertModal] = useState<{
         isOpen: boolean;
         title: string;
         message: string;
         type: 'success' | 'error' | 'warning' | 'info';
-        onConfirm?: () => void;
-    }>({
-        isOpen: false,
-        title: '',
-        message: '',
-        type: 'info'
-    });
+    }>({ isOpen: false, title: '', message: '', type: 'info' });
 
-    const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', onConfirm?: () => void) => {
-        setAlertModal({ isOpen: true, title, message, type, onConfirm });
+    const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+        setAlertModal({ isOpen: true, title, message, type });
     };
 
-    const closeAlert = () => {
-        setAlertModal(prev => ({ ...prev, isOpen: false }));
-        if (alertModal.onConfirm) alertModal.onConfirm();
-    };
-
-    // Fetch Data Effect
-    React.useEffect(() => {
-        if (!user) return;
-
-        if (filterType === 'INSUMO') {
-            fetchIngredients();
-        } else {
-            fetchDishes();
-        }
-    }, [user, filterType]);
-
-    // Search Effect (for Recipe Builder)
-    React.useEffect(() => {
-        if (filterType !== 'RECETA') return;
-        const search = async () => {
-            if (searchQuery.length < 2) {
-                setSearchResults([]);
-                return;
-            }
-            setIsSearching(true);
-            const { data } = await supabase
-                .from('ingredients')
-                .select('*')
-                .ilike('name', `%${searchQuery}%`)
-                .limit(5);
-            setSearchResults(data || []);
-            setIsSearching(false);
-        };
-        const timeoutId = setTimeout(search, 300);
-        return () => clearTimeout(timeoutId);
-    }, [searchQuery, filterType]);
-
-    // Search Effect (for Edit Modal)
-    React.useEffect(() => {
-        if (!editingItemDish) return;
-        const search = async () => {
-            if (editSearchQuery.length < 2) {
-                setEditSearchResults([]);
-                return;
-            }
-            setIsSearchingEdit(true);
-            const { data } = await supabase
-                .from('ingredients')
-                .select('*')
-                .ilike('name', `%${editSearchQuery}%`)
-                .limit(5);
-            setEditSearchResults(data || []);
-            setIsSearchingEdit(false);
-        };
-        const timeoutId = setTimeout(search, 300);
-        return () => clearTimeout(timeoutId);
-    }, [editSearchQuery, editingItemDish]);
-
-    // Fetch Recipe Ingredients when editing
-    React.useEffect(() => {
-        if (!editingItemDish) {
-            setEditingDishIngredients([]);
-            return;
-        }
-        const fetchRecipeIngredients = async () => {
-            const { data, error } = await supabase
-                .from('dish_ingredients')
-                .select('*')
-                .eq('dish_id', editingItemDish.id);
-            if (!error) setEditingDishIngredients(data || []);
-        };
-        fetchRecipeIngredients();
-    }, [editingItemDish]);
+    // --- Data Fetching ---
 
     const fetchIngredients = async () => {
         setLoadingData(true);
-        const { data, error } = await supabase
-            .from('ingredients')
-            .select('*')
-            .order('created_at', { ascending: false });
-
+        const { data, error } = await supabase.from('ingredients').select('*').order('created_at', { ascending: false });
         if (!error) setIngredients(data || []);
         else console.error(error);
         setLoadingData(false);
@@ -160,290 +59,64 @@ const InventoryPage: React.FC = () => {
 
     const fetchDishes = async () => {
         setLoadingData(true);
-        const { data, error } = await supabase
-            .from('dishes')
-            .select('*')
-            .order('created_at', { ascending: false });
-
+        const { data, error } = await supabase.from('dishes').select('*').order('created_at', { ascending: false });
         if (!error) setDishes(data || []);
         else console.error(error);
         setLoadingData(false);
     };
 
-    // Helper to map DB dishes to InventoryItem
+    React.useEffect(() => {
+        if (!user) return;
+        fetchIngredients();
+        fetchDishes();
+    }, [user]);
+
+    // --- Filtering Logic ---
+
     const getDisplayItems = () => {
         if (filterType === 'INSUMO') return [];
-
-        // Map Supabase dishes to UI InventoryItems
         const dbItems: InventoryItem[] = dishes.map(d => ({
             id: d.id,
             name: d.name,
-            type: d.sale_price > 0 ? 'PRODUCTO' : 'RECETA', // Simple heuristic: if it has a sale price, it's a product
+            type: d.sale_price > 0 ? 'PRODUCTO' : 'RECETA',
             totalCost: d.total_cost,
             salePrice: d.sale_price,
             profitMargin: d.profit_margin,
-            itemsCount: 0, // We can't know this without joining, keep 0 for now
+            itemsCount: 0,
             date: new Date(d.created_at).getTime()
         }));
 
-        // Filter based on current tab
         let filteredItems = dbItems.filter(item => item.type === filterType);
-
-        // Apply search filter
         const searchFilter = filterType === 'PRODUCTO' ? productSearchFilter : recipeSearchFilter;
         if (searchFilter.trim()) {
-            filteredItems = filteredItems.filter(item =>
-                item.name.toLowerCase().includes(searchFilter.toLowerCase())
-            );
+            filteredItems = filteredItems.filter(item => item.name.toLowerCase().includes(searchFilter.toLowerCase()));
         }
-
         return filteredItems;
     };
 
-    // Filter ingredients based on search
     const getFilteredIngredients = () => {
         if (!ingredientSearchFilter.trim()) return ingredients;
-        return ingredients.filter(ing =>
-            ing.name.toLowerCase().includes(ingredientSearchFilter.toLowerCase())
-        );
+        return ingredients.filter(ing => ing.name.toLowerCase().includes(ingredientSearchFilter.toLowerCase()));
     };
 
     const displayItems = getDisplayItems();
     const filteredIngredients = getFilteredIngredients();
 
-    const handleSaveIngredient = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!user) { showAlert("Sesión Requerida", "Debes iniciar sesión.", "warning"); return; }
-        if (!newIng.name || !newIng.price || !newIng.qty) return;
+    // --- Handlers ---
 
-        setIsSubmitting(true);
-        const { error } = await supabase.from('ingredients').insert({
-            user_id: user.id,
-            name: newIng.name,
-            purchase_price: parseFloat(newIng.price),
-            purchase_quantity: parseFloat(newIng.qty),
-            purchase_unit: newIng.unit
-        });
-
-        if (error) {
-            showAlert("Error", "Error al guardar: " + error.message, "error");
-        } else {
-            setNewIng({ name: '', price: '', qty: '', unit: 'Und' });
-            fetchIngredients(); // Refresh list
-        }
-        setIsSubmitting(false);
-    };
-
-    const handleAddItemToRecipe = async () => {
-        if (!searchQuery) return;
-
-        let newItem: any;
-        const uQty = parseFloat(useQty) || 0;
-
-        if (selectedIngredient) {
-            const pricePerUnit = selectedIngredient.purchase_price / selectedIngredient.purchase_quantity;
-            newItem = {
-                id: Date.now().toString(),
-                db_id: selectedIngredient.id,
-                name: selectedIngredient.name,
-                cost: pricePerUnit * uQty,
-                boughtPrice: selectedIngredient.purchase_price,
-                usedQty: uQty,
-                usedUnit: selectedIngredient.purchase_unit
-            };
-        } else {
-            const price = parseFloat(manualPrice) || 0;
-            const yieldAmount = parseFloat(manualYield) || 1;
-            const calcCost = price / yieldAmount;
-
-            let db_id = null;
-            if (user) {
-                const { data } = await supabase.from('ingredients').insert({
-                    user_id: user.id,
-                    name: searchQuery,
-                    purchase_price: price,
-                    purchase_quantity: yieldAmount,
-                    purchase_unit: useUnit
-                }).select().single();
-                db_id = data?.id;
-            }
-
-            newItem = {
-                id: Date.now().toString(),
-                db_id: db_id,
-                name: searchQuery,
-                cost: calcCost,
-                boughtPrice: price,
-                usedQty: 1,
-                usedUnit: useUnit
-            };
-        }
-
-        setTempRecipeIngredients([...tempRecipeIngredients, newItem]);
-        setSearchQuery('');
-        setSelectedIngredient(null);
-        setUseQty('');
-        setManualPrice('');
-    };
-
-    const handleSaveRecipe = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!user || !recipeName || tempRecipeIngredients.length === 0) return;
-
-        setIsSubmitting(true);
-        const totalCost = tempRecipeIngredients.reduce((acc, i) => acc + i.cost, 0);
-
-        try {
-            const { data: dish, error } = await supabase.from('dishes').insert({
-                user_id: user.id,
-                name: recipeName,
-                total_cost: totalCost,
-                sale_price: 0,
-                profit_margin: 0
-            }).select().single();
-
-            if (error) throw error;
-
-            if (dish) {
-                // Save Ingredients
-                const details = tempRecipeIngredients.map(i => ({
-                    dish_id: dish.id,
-                    ingredient_id: i.db_id,
-                    name: i.name,
-                    used_quantity: i.usedQty || 1,
-                    used_unit: i.usedUnit || 'Und',
-                    cost_snapshot: i.cost
-                }));
-                await supabase.from('dish_ingredients').insert(details);
-            }
-
-            setRecipeName('');
-            setTempRecipeIngredients([]);
-            fetchDishes();
-        } catch (error: any) {
-            showAlert("Error", "Error al guardar receta: " + error.message, "error");
-        }
-        setIsSubmitting(false);
-    };
-
-    const handleUpdateDish = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!editingItemDish || !user) return;
-
-        setIsSubmitting(true);
-        try {
-            // 1. Calculate current total cost from editing list
-            const currentTotalCost = editingDishIngredients.reduce((acc, i) => acc + (parseFloat(i.cost_snapshot) || 0), 0);
-
-            // 2. Update Dish Header
-            const { error: dishError } = await supabase
-                .from('dishes')
-                .update({
-                    name: editingItemDish.name,
-                    total_cost: currentTotalCost,
-                    sale_price: parseFloat(editingItemDish.sale_price || 0),
-                    profit_margin: parseFloat(editingItemDish.profit_margin || 0)
-                })
-                .eq('id', editingItemDish.id);
-
-            if (dishError) throw dishError;
-
-            // 3. Sync Ingredients: delete all and re-insert for the dish
-            const { error: deleteError } = await supabase
-                .from('dish_ingredients')
-                .delete()
-                .eq('dish_id', editingItemDish.id);
-
-            if (deleteError) throw deleteError;
-
-            if (editingDishIngredients.length > 0) {
-                const details = editingDishIngredients.map(i => ({
-                    dish_id: editingItemDish.id,
-                    ingredient_id: i.ingredient_id,
-                    name: i.name,
-                    used_quantity: parseFloat(i.used_quantity || 0),
-                    used_unit: i.used_unit || 'Und',
-                    cost_snapshot: parseFloat(i.cost_snapshot || 0)
-                }));
-                const { error: insertError } = await supabase.from('dish_ingredients').insert(details);
-                if (insertError) throw insertError;
-            }
-
-            setEditingItemDish(null);
-            fetchDishes();
-        } catch (error: any) {
-            showAlert("Error", "Error al actualizar: " + error.message, "error");
-        }
-        setIsSubmitting(false);
-    };
-
-    const handleRemoveFromEditing = (id: string | number) => {
-        setEditingDishIngredients(prev => prev.filter(i => (i.id || i.name) !== id));
-    };
-
-    const handleAddToEditing = () => {
-        if (!editSelectedIng || !editUseQty) return;
-
-        const uQty = parseFloat(editUseQty);
-        const pricePerUnit = editSelectedIng.purchase_price / editSelectedIng.purchase_quantity;
-        const calcCost = pricePerUnit * uQty;
-
-        const newItem = {
-            id: Date.now().toString(),
-            dish_id: editingItemDish.id,
-            ingredient_id: editSelectedIng.id,
-            name: editSelectedIng.name,
-            used_quantity: uQty,
-            used_unit: editSelectedIng.purchase_unit,
-            cost_snapshot: calcCost
-        };
-
-        setEditingDishIngredients([...editingDishIngredients, newItem]);
-        setEditSearchQuery('');
-        setEditSelectedIng(null);
-        setEditUseQty('');
-    };
-
-    const handleUpdateIngredient = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!editingItem || !user) return;
-
-        setIsSubmitting(true);
-        const { error } = await supabase
-            .from('ingredients')
-            .update({
-                name: editingItem.name,
-                purchase_price: parseFloat(editingItem.purchase_price),
-                purchase_quantity: parseFloat(editingItem.purchase_quantity),
-                purchase_unit: editingItem.purchase_unit
-            })
-            .eq('id', editingItem.id);
-
-        if (error) {
-            showAlert("Error", "Error al actualizar: " + error.message, "error");
-        } else {
-            setEditingItem(null);
-            fetchIngredients();
-        }
-        setIsSubmitting(false);
+    const handleNewProject = () => {
+        resetProject();
+        navigate('/costing-engine');
     };
 
     const handleDelete = async () => {
         if (!showDeleteConfirm || !user) return;
-
         try {
             const table = showDeleteConfirm.type === 'INSUMO' ? 'ingredients' : 'dishes';
-            const { error } = await supabase
-                .from(table)
-                .delete()
-                .eq('id', showDeleteConfirm.id);
-
+            const { error } = await supabase.from(table).delete().eq('id', showDeleteConfirm.id);
             if (error) {
-                if (error.message.includes('foreign key constraint')) {
-                    showAlert("No se puede eliminar", "Este ítem está siendo usado en una receta o producto.", "warning");
-                } else {
-                    throw error;
-                }
+                if (error.message.includes('foreign key constraint')) showAlert("No se puede eliminar", "Este ítem está siendo usado en una receta o producto.", "warning");
+                else throw error;
             } else {
                 if (showDeleteConfirm.type === 'INSUMO') fetchIngredients();
                 else fetchDishes();
@@ -454,27 +127,21 @@ const InventoryPage: React.FC = () => {
         }
     };
 
-    const handleNewProject = () => {
-        resetProject();
-        navigate('/costing-engine');
-    };
-
     return (
-        <div className="bg-gradient-to-br from-indigo-50 to-white dark:from-background-dark dark:to-neutral-dark min-h-screen text-neutral-dark dark:text-white font-display flex flex-col transition-colors duration-300">
+        <div className="bg-[#F8F9FB] dark:bg-slate-900 min-h-screen text-slate-800 dark:text-white font-display flex flex-col transition-colors duration-300">
             <HeaderSimple />
-            {isSubmitting && <LiquidLoader />}
 
-            {/* Generic Alert Modal */}
+            {/* --- MODALS --- */}
+
             <LiquidModal
                 isOpen={alertModal.isOpen}
                 title={alertModal.title}
                 message={alertModal.message}
                 type={alertModal.type}
                 onClose={() => setAlertModal(prev => ({ ...prev, isOpen: false }))}
-                onConfirm={closeAlert}
+                onConfirm={() => setAlertModal(prev => ({ ...prev, isOpen: false }))}
             />
 
-            {/* Delete Confirm Modal (Replaced with LiquidModal) */}
             <LiquidModal
                 isOpen={!!showDeleteConfirm}
                 title="¿Confirmar eliminación?"
@@ -485,878 +152,332 @@ const InventoryPage: React.FC = () => {
                 onClose={() => setShowDeleteConfirm(null)}
                 onConfirm={handleDelete}
             />
-            <main className="flex-1 w-full max-w-7xl mx-auto px-4 md:px-8 py-8">
 
-                {/* BOTÓN REGRESAR PERSISTENTE */}
-                <div className="w-full mb-6 relative">
-                    <button
-                        onClick={() => navigate('/')}
-                        className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors font-bold text-sm group"
-                    >
-                        <div className="p-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm group-hover:border-secondary group-hover:text-secondary transition-all">
-                            <span className="material-symbols-outlined text-[18px] block group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
-                        </div>
-                        <span>Regresar</span>
-                    </button>
-                </div>
+            {/* Create / Edit Modals */}
+            <IngredientModal
+                isOpen={showNewIngredientModal || !!editingIngredient}
+                onClose={() => { setShowNewIngredientModal(false); setEditingIngredient(null); }}
+                onSuccess={() => { fetchIngredients(); }}
+                editingIngredient={editingIngredient}
+            />
 
-                {/* Header Section */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                    <div>
-                        <h2 className="text-2xl md:text-3xl font-bold text-neutral-dark dark:text-white tracking-tight">Mi Inventario</h2>
-                        <p className="text-sm md:text-base text-neutral-gray dark:text-gray-400 mt-1">Gestiona tus productos terminados, recetas base e insumos.</p>
+            <RecipeModal
+                isOpen={showNewRecipeModal || !!editingRecipe}
+                onClose={() => { setShowNewRecipeModal(false); setEditingRecipe(null); }}
+                onSuccess={() => { fetchDishes(); }}
+                editingRecipe={editingRecipe}
+            />
+
+
+            <main className="w-full max-w-7xl mx-auto px-4 md:px-8 py-8 flex flex-col gap-8">
+
+                {/* 1. Page Header (Minimal) */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                    <div className="space-y-1">
+                        <button onClick={() => navigate('/')} className="group flex items-center gap-2 text-slate-400 hover:text-orange-500 mb-6 transition-all font-black text-[10px] uppercase tracking-[0.2em]">
+                            <span className="material-symbols-outlined text-[18px] group-hover:-translate-x-1 transition-transform">arrow_back</span>
+                            Panel de Control
+                        </button>
+                        <h2 className="text-3xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tighter text-balance">Inventario</h2>
+                        <p className="text-slate-400 font-medium text-sm">Gestiona tus insumos y creaciones con precisión quirúrgica.</p>
                     </div>
-                    {filterType === 'PRODUCTO' && (
-                        <button onClick={handleNewProject} className="bg-secondary hover:bg-deep-purple text-white px-5 py-3 md:px-6 md:py-3 rounded-xl shadow-lg shadow-secondary/20 flex items-center justify-center gap-2 transition-all active:scale-95 font-medium w-full md:w-auto text-sm md:text-base">
-                            <span className="material-symbols-outlined text-[20px]">add</span>
-                            Nuevo Producto
-                        </button>
-                    )}
-                    {filterType === 'RECETA' && (
-                        <button onClick={() => setShowNewRecipeModal(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-5 py-3 md:px-6 md:py-3 rounded-xl shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-95 font-medium w-full md:w-auto text-sm md:text-base">
-                            <span className="material-symbols-outlined text-[20px]">add</span>
-                            Nueva Receta
-                        </button>
-                    )}
-                    {filterType === 'INSUMO' && (
-                        <button onClick={() => setShowNewIngredientModal(true)} className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-3 md:px-6 md:py-3 rounded-xl shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all active:scale-95 font-medium w-full md:w-auto text-sm md:text-base">
-                            <span className="material-symbols-outlined text-[20px]">add</span>
-                            Nuevo Insumo
-                        </button>
-                    )}
-                </div>
 
-                {/* Tabs - Scrollable on mobile */}
-                <div className="flex gap-4 md:gap-6 border-b border-gray-200 dark:border-gray-800 mb-6 overflow-x-auto pb-1 no-scrollbar">
-                    <button
-                        onClick={() => setFilterType('PRODUCTO')}
-                        className={`pb-3 px-1 text-xs md:text-sm font-bold tracking-wide transition-colors relative whitespace-nowrap shrink-0 ${filterType === 'PRODUCTO' ? 'text-secondary dark:text-white' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                        MENÚS Y PRODUCTOS
-                        {filterType === 'PRODUCTO' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-secondary"></span>}
-                    </button>
-                    <button
-                        onClick={() => setFilterType('RECETA')}
-                        className={`pb-3 px-1 text-xs md:text-sm font-bold tracking-wide transition-colors relative whitespace-nowrap shrink-0 ${filterType === 'RECETA' ? 'text-orange-500 dark:text-orange-400' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                        RECETAS BASE
-                        {filterType === 'RECETA' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-orange-500"></span>}
-                    </button>
-                    <button
-                        onClick={() => setFilterType('INSUMO')}
-                        className={`pb-3 px-1 text-xs md:text-sm font-bold tracking-wide transition-colors relative whitespace-nowrap shrink-0 ${filterType === 'INSUMO' ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                        MIS INSUMOS
-                        {filterType === 'INSUMO' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500"></span>}
-                    </button>
-                </div>
-
-                {/* CONTENIDO */}
-                {filterType === 'INSUMO' ? (
-                    <div className="flex flex-col gap-4 animate-fade-in-up">
-                        {/* Search Bar */}
-                        <div className="relative group/search">
-                            <input
-                                className="w-full bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 pl-11 text-sm focus:border-blue-500 outline-none transition-all shadow-sm"
-                                placeholder="Buscar insumos..."
-                                type="text"
-                                value={ingredientSearchFilter}
-                                onChange={(e) => setIngredientSearchFilter(e.target.value)}
-                            />
-                            <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-blue-500 transition-colors">search</span>
-                        </div>
-
-                        {/* LISTA DE INSUMOS */}
-                        {loadingData ? (
-                            <div className="text-center py-10">
-                                <span className="material-symbols-outlined animate-spin text-4xl text-gray-300">progress_activity</span>
-                                <p className="text-xs text-gray-400 mt-2">Cargando...</p>
-                            </div>
-                        ) : filteredIngredients.length > 0 ? (
-                            <div className="flex flex-col gap-3 md:gap-4">
-                                {filteredIngredients.map(ing => (
-                                    <div key={ing.id} className="group bg-white dark:bg-surface-dark rounded-2xl md:rounded-xl shadow-sm border border-gray-100 dark:border-white/5 overflow-hidden hover:shadow-md hover:border-blue-500/20 transition-all duration-300">
-                                        <div className="flex items-center justify-between p-4 px-6">
-                                            <div className="flex items-center gap-4">
-                                                <div className="size-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-500 flex items-center justify-center">
-                                                    <span className="material-symbols-outlined">grocery</span>
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-slate-800 dark:text-white text-sm">{ing.name}</h4>
-                                                    <p className="text-[10px] text-gray-400 font-bold uppercase">{ing.purchase_quantity} {ing.purchase_unit} (Paquete: {formatCurrency(ing.purchase_price)})</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-6">
-                                                <div className="text-right hidden sm:block">
-                                                    <p className="text-[9px] text-gray-400 font-bold uppercase">Costo Unitario</p>
-                                                    <p className="font-black text-slate-700 dark:text-white text-base">
-                                                        {formatCurrency(ing.purchase_price / ing.purchase_quantity)} <span className="text-[10px] text-gray-400 font-normal">/ {ing.purchase_unit}</span>
-                                                    </p>
-                                                </div>
-                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button
-                                                        onClick={() => setEditingItem(ing)}
-                                                        className="p-2 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[20px]">edit</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setShowDeleteConfirm({ id: ing.id, name: ing.name, type: 'INSUMO' })}
-                                                        className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[20px]">delete</span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : ingredients.length > 0 ? (
-                            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/50 dark:bg-gray-900/50">
-                                <div className="size-16 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-400 mb-4 shadow-sm">
-                                    <span className="material-symbols-outlined text-3xl">search_off</span>
-                                </div>
-                                <h3 className="text-sm font-bold text-neutral-dark dark:text-white">Sin resultados</h3>
-                                <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mt-1 text-xs">
-                                    No se encontraron insumos con "{ingredientSearchFilter}"
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/50 dark:bg-gray-900/50">
-                                <div className="size-16 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-400 mb-4 shadow-sm">
-                                    <span className="material-symbols-outlined text-3xl">kitchen</span>
-                                </div>
-                                <h3 className="text-sm font-bold text-neutral-dark dark:text-white">Tu despensa está vacía</h3>
-                                <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mt-1 text-xs">
-                                    Agrega tus insumos frecuentes para costear más rápido.
-                                </p>
-                                <button onClick={() => setShowNewIngredientModal(true)} className="mt-4 text-blue-500 font-bold hover:underline text-sm">+ Agregar primer insumo</button>
-                            </div>
+                    {/* Action Buttons */}
+                    <div className="flex gap-3">
+                        {filterType === 'PRODUCTO' && (
+                            <button onClick={handleNewProject} className="group relative overflow-hidden bg-slate-900 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-black text-xs uppercase tracking-[0.15em] transition-all active:scale-95 hover:bg-black">
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                                <span className="material-symbols-outlined text-indigo-400 font-bold">add_circle</span>
+                                Nuevo Costeo
+                            </button>
                         )}
-                    </div>
-                ) : filterType === 'RECETA' ? (
-                    <div className="flex flex-col gap-4 animate-fade-in-up">
-                        {/* Search Bar */}
-                        <div className="relative group/search">
-                            <input
-                                className="w-full bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 pl-11 text-sm focus:border-orange-500 outline-none transition-all shadow-sm"
-                                placeholder="Buscar recetas..."
-                                type="text"
-                                value={recipeSearchFilter}
-                                onChange={(e) => setRecipeSearchFilter(e.target.value)}
-                            />
-                            <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-orange-500 transition-colors">search</span>
-                        </div>
-
-                        {/* LISTADO DE RECETAS GUARDADAS */}
-                        {loadingData ? (
-                            <div className="text-center py-10">
-                                <span className="material-symbols-outlined animate-spin text-4xl text-gray-300">progress_activity</span>
-                            </div>
-                        ) : displayItems.length > 0 ? (
-                            <div className="flex flex-col gap-3 md:gap-4">
-                                {displayItems.map((item) => (
-                                    <div key={item.id} className="group bg-white dark:bg-surface-dark rounded-2xl md:rounded-xl shadow-sm border border-gray-100 dark:border-white/5 overflow-hidden hover:shadow-md hover:border-orange-500/20 transition-all duration-300">
-                                        <div className="flex items-center justify-between p-4 px-6">
-                                            <div className="flex items-center gap-4">
-                                                <div className="size-10 rounded-xl bg-orange-50 dark:bg-orange-900/20 text-orange-500 flex items-center justify-center">
-                                                    <span className="material-symbols-outlined">bakery_dining</span>
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-slate-800 dark:text-white text-sm">{item.name}</h4>
-                                                    <p className="text-[10px] text-gray-400 font-bold uppercase">Receta Base</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-6">
-                                                <div className="text-right">
-                                                    <p className="text-[9px] text-gray-400 font-bold uppercase">Costo Base</p>
-                                                    <p className="font-black text-slate-700 dark:text-white text-base">{formatCurrency(item.totalCost)}</p>
-                                                </div>
-                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button
-                                                        onClick={() => {
-                                                            const fullItem = dishes.find(d => d.id === item.id);
-                                                            setEditingItemDish(fullItem);
-                                                        }}
-                                                        className="p-2 text-gray-400 hover:text-orange-500 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[20px]">edit</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setShowDeleteConfirm({ id: item.id, name: item.name, type: 'RECETA' })}
-                                                        className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/10"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[20px]">delete</span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : dishes.filter(d => d.sale_price <= 0).length > 0 ? (
-                            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/50 dark:bg-gray-900/50">
-                                <div className="size-16 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-400 mb-4 shadow-sm">
-                                    <span className="material-symbols-outlined text-3xl">search_off</span>
-                                </div>
-                                <h3 className="text-sm font-bold text-neutral-dark dark:text-white">Sin resultados</h3>
-                                <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mt-1 text-xs">
-                                    No se encontraron recetas con "{recipeSearchFilter}"
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-3xl bg-gray-50/30">
-                                <span className="material-symbols-outlined text-4xl text-gray-300 mb-3">no_meals</span>
-                                <h3 className="text-sm font-bold text-neutral-dark dark:text-white">No tienes recetas base</h3>
-                                <p className="text-xs text-gray-400 max-w-[200px] mt-1">Crea recetas base para agilizar el costeo de tus productos.</p>
-                                <button onClick={() => setShowNewRecipeModal(true)} className="mt-4 text-orange-500 font-bold hover:underline text-sm">+ Crear primera receta</button>
-                            </div>
+                        {filterType === 'RECETA' && (
+                            <button onClick={() => setShowNewRecipeModal(true)} className="group relative overflow-hidden bg-orange-500 text-white px-8 py-4 rounded-2xl shadow-xl flex items-center gap-3 font-black text-xs uppercase tracking-[0.15em] transition-all active:scale-95 hover:bg-orange-600">
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                                <span className="material-symbols-outlined font-bold">skillet</span>
+                                Nueva Receta
+                            </button>
                         )}
+                        {filterType === 'INSUMO' && (
+                            <button onClick={() => setShowNewIngredientModal(true)} className="group relative overflow-hidden bg-blue-600 text-white px-8 py-4 rounded-2xl shadow-xl flex items-center gap-3 font-black text-xs uppercase tracking-[0.15em] transition-all active:scale-95 hover:bg-blue-700">
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                                <span className="material-symbols-outlined font-bold">inventory_2</span>
+                                Nuevo Insumo
+                            </button>
+                        )}
+
                     </div>
-                ) : (
-                    /* PRODUCTO (Lista simple) */
-                    loadingData ? (
-                        <div className="flex items-center justify-center py-20">
-                            <span className="material-symbols-outlined animate-spin text-4xl text-gray-300">progress_activity</span>
+                </div>
+
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                    {/* Segmented Control - Mobile Optimized */}
+                    <div className="p-1 bg-white/50 dark:bg-black/20 backdrop-blur-md rounded-xl w-full md:w-auto flex justify-between md:justify-start gap-1 border border-slate-200 dark:border-white/5 shadow-inner overflow-x-auto">
+                        {['PRODUCTO', 'RECETA', 'INSUMO'].map((type) => (
+                            <button
+                                key={type}
+                                onClick={() => setFilterType(type as any)}
+                                className={`flex-1 md:flex-none px-3 md:px-6 py-2 md:py-3 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-1.5 transform active:scale-95 whitespace-nowrap ${filterType === type
+                                    ? type === 'PRODUCTO' ? 'bg-slate-900 text-white shadow-md' : type === 'RECETA' ? 'bg-orange-500 text-white shadow-md' : 'bg-blue-600 text-white shadow-md'
+                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-white/40'
+                                    }`}
+                            >
+                                <span className="material-symbols-outlined text-[16px] md:text-[18px]">
+                                    {type === 'PRODUCTO' ? 'restaurant_menu' : type === 'RECETA' ? 'skillet' : 'inventory_2'}
+                                </span>
+                                {type}S
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className="relative group w-full max-w-md">
+                        <div className="flex items-center px-6 py-4 bg-white/80 dark:bg-white/5 backdrop-blur-md rounded-[24px] border border-slate-200 dark:border-white/10 shadow-sm focus-within:shadow-xl focus-within:border-indigo-400/50 transition-all gap-4 ring-offset-4 ring-indigo-500/0 focus-within:ring-4 focus-within:ring-indigo-500/10">
+                            <span className="material-symbols-outlined text-slate-300 group-focus-within:text-indigo-500 transition-colors">search</span>
+                            <input
+                                type="text"
+                                placeholder={`Buscar en el catálogo de ${filterType.toLowerCase()}s...`}
+                                className="bg-transparent border-none focus:ring-0 w-full text-sm font-black placeholder-slate-300 dark:placeholder-slate-700 text-slate-800 dark:text-white p-0 uppercase tracking-tighter"
+                                value={filterType === 'PRODUCTO' ? productSearchFilter : filterType === 'RECETA' ? recipeSearchFilter : ingredientSearchFilter}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (filterType === 'PRODUCTO') setProductSearchFilter(val);
+                                    else if (filterType === 'RECETA') setRecipeSearchFilter(val);
+                                    else setIngredientSearchFilter(val);
+                                }}
+                            />
                         </div>
-                    ) : displayItems.length > 0 ? (
-                        <div className="flex flex-col gap-3 md:gap-4 animate-fade-in-up">
-                            {/* Search Bar */}
-                            <div className="relative group/search">
-                                <input
-                                    className="w-full bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 pl-11 text-sm focus:border-secondary outline-none transition-all shadow-sm"
-                                    placeholder="Buscar productos..."
-                                    type="text"
-                                    value={productSearchFilter}
-                                    onChange={(e) => setProductSearchFilter(e.target.value)}
-                                />
-                                <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-secondary transition-colors">search</span>
-                            </div>
+                    </div>
+                </div>
 
-                            {/* Header del Listado (Desktop only) */}
-                            <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-gray-100/50 dark:bg-gray-800/30 rounded-xl text-[10px] font-bold text-gray-400 uppercase tracking-widest border border-transparent">
-                                <div className="col-span-1">Tipo</div>
-                                <div className="col-span-4">Nombre del Producto / Receta</div>
-                                <div className="col-span-2 text-center">Costo Prod.</div>
-                                <div className="col-span-2 text-center">Precio Venta</div>
-                                <div className="col-span-1 text-center">Margen</div>
-                                <div className="col-span-2 text-right">Acciones</div>
-                            </div>
+                {/* 4. Content List (AI Arc Wrapper) */}
+                <div className="relative group">
+                    {/* AI Arc Glow Effect */}
+                    <div className="absolute inset-[-2px] rounded-[34px] overflow-hidden opacity-50 group-hover:opacity-100 transition-opacity">
+                        <div
+                            className="absolute inset-[-100%] animate-[spin_4s_linear_infinite] blur-md will-change-transform"
+                            style={{
+                                background: `conic-gradient(from 0deg, ${filterType === 'PRODUCTO'
+                                    ? "theme('colors.indigo.500'), theme('colors.purple.500'), theme('colors.pink.500'), theme('colors.indigo.600'), theme('colors.indigo.500')"
+                                    : filterType === 'RECETA'
+                                        ? "theme('colors.orange.500'), theme('colors.amber.500'), theme('colors.yellow.400'), theme('colors.orange.600'), theme('colors.orange.500')"
+                                        : "theme('colors.blue.500'), theme('colors.blue.400'), theme('colors.cyan.400'), theme('colors.blue.600'), theme('colors.blue.500')"
+                                    })`
+                            }}
+                        />
+                    </div>
 
-                            {displayItems.map((item) => (
-                                <div key={item.id} className="group bg-white dark:bg-surface-dark rounded-2xl md:rounded-xl shadow-sm border border-gray-100 dark:border-white/5 overflow-hidden hover:shadow-md hover:border-secondary/20 transition-all duration-300">
+                    <div className="relative bg-white dark:bg-slate-900 rounded-[32px] shadow-2xl border border-white/40 dark:border-white/10 overflow-hidden min-h-[500px] flex flex-col">
+                        {/* List Header Bar */}
+                        <div className="hidden md:grid grid-cols-[1.5fr,1fr,1.2fr,1.2fr,0.6fr] gap-4 px-10 py-5 bg-white/50 dark:bg-white/5 border-b border-white/40 dark:border-white/5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] relative z-10">
+                            <div>Ítem / Identificación</div>
+                            <div className="text-center">{filterType === 'INSUMO' ? 'Rendimiento' : 'Eficiencia'}</div>
+                            <div className="text-right">Inversión {filterType === 'PRODUCTO' ? 'Producc.' : filterType === 'INSUMO' ? 'Unitario' : ''}</div>
+                            <div className="text-right">{filterType === 'PRODUCTO' ? 'Precio Público' : filterType === 'INSUMO' ? 'Compra Total' : 'Valor Total'}</div>
+                            <div className="text-right">Gestión</div>
+                        </div>
 
-                                    {/* Mobile Layout */}
-                                    <div className="md:hidden">
-                                        {/* Header Section */}
-                                        <div className="flex items-center gap-3 p-4 pb-3 border-b border-gray-50 dark:border-gray-800/50">
-                                            <div className="size-12 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 text-blue-500 shrink-0 shadow-sm">
-                                                <span className="material-symbols-outlined text-[24px]">restaurant_menu</span>
+                        <div className="flex-1 divide-y divide-slate-100 dark:divide-white/5 relative z-10">
+                            {loadingData ? (
+                                <div className="py-32 flex flex-col items-center justify-center text-slate-300 space-y-4">
+                                    <span className="material-symbols-outlined text-5xl animate-spin text-indigo-500">progress_activity</span>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em]">Sincronizando con la nube...</p>
+                                </div>
+                            ) : filterType === 'INSUMO' ? (
+                                filteredIngredients.length > 0 ? filteredIngredients.map(ing => (
+                                    <div key={ing.id} className="grid grid-cols-[1fr,auto] md:grid-cols-[1.5fr,1fr,1.2fr,1.2fr,0.6fr] gap-3 px-4 py-3 md:px-10 md:py-4 items-center group hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-all animate-fade-in border-b border-slate-100 last:border-0 md:border-none">
+                                        {/* Name & Icon */}
+                                        <div className="flex items-center gap-3">
+                                            <div className="size-10 md:size-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 flex items-center justify-center shrink-0 shadow-sm border border-blue-100 dark:border-blue-500/20">
+                                                <span className="material-symbols-outlined text-[18px]">inventory_2</span>
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <h4 className="font-bold text-slate-800 dark:text-white text-base truncate leading-tight" title={item.name}>{item.name}</h4>
-                                                <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/30">
-                                                    Producto
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Data Grid */}
-                                        <div className="grid grid-cols-3 gap-3 p-4 pb-3">
-                                            <div className="flex flex-col items-center text-center">
-                                                <span className="text-[10px] text-gray-400 font-bold uppercase mb-1.5">Costo</span>
-                                                <span className="font-bold text-slate-700 dark:text-gray-300 text-sm leading-none">{formatCurrency(item.totalCost)}</span>
-                                            </div>
-                                            <div className="flex flex-col items-center text-center border-x border-gray-100 dark:border-gray-800">
-                                                <span className="text-[10px] text-gray-400 font-bold uppercase mb-1.5">Venta</span>
-                                                <span className="font-black text-secondary text-base leading-none">{formatCurrency(item.salePrice)}</span>
-                                            </div>
-                                            <div className="flex flex-col items-center text-center">
-                                                <span className="text-[10px] text-gray-400 font-bold uppercase mb-1.5">Margen</span>
-                                                <span className="px-2 py-1 rounded-full bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-[11px] font-black border border-green-100 dark:border-green-800/30 leading-none">
-                                                    {item.profitMargin}%
-                                                </span>
+                                            <div className="truncate min-w-0">
+                                                <h4 className="font-bold text-slate-800 dark:text-white text-sm truncate tracking-tight">{ing.name}</h4>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-600 text-[8px] font-black uppercase rounded tracking-widest">
+                                                        {ing.purchase_quantity} {ing.purchase_unit}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
 
-                                        {/* Actions */}
-                                        <div className="flex gap-2 p-3 pt-0">
-                                            <button
-                                                onClick={() => {
-                                                    const fullItem = dishes.find(d => d.id === item.id);
-                                                    setEditingItemDish(fullItem);
-                                                }}
-                                                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-gray-50 dark:bg-gray-800/50 text-slate-600 dark:text-slate-400 hover:text-secondary dark:hover:text-secondary rounded-xl transition-all border border-gray-100 dark:border-gray-700/50 active:scale-95">
-                                                <span className="material-symbols-outlined text-[18px]">edit</span>
-                                                <span className="text-xs font-bold">Editar</span>
+                                        {/* Mobile Right Side: Cost & Actions */}
+                                        <div className="flex flex-col items-end gap-1 md:hidden">
+                                            <div className="text-right">
+                                                <div className="text-sm font-black text-blue-600">{formatCurrency(ing.purchase_price)}</div>
+                                            </div>
+                                            <div className="flex justify-end gap-1">
+                                                <button onClick={() => setEditingIngredient(ing)} className="size-8 rounded-lg bg-slate-50 text-slate-400 hover:text-blue-600 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined text-[16px]">edit</span>
+                                                </button>
+                                                <button onClick={() => setShowDeleteConfirm({ id: ing.id, name: ing.name, type: 'INSUMO' })} className="size-8 rounded-lg bg-slate-50 text-slate-400 hover:text-red-500 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Desktop Columns (Hidden on Mobile) */}
+                                        <div className="hidden md:flex justify-center">
+                                            <div className="bg-slate-100/50 dark:bg-white/5 border border-slate-200 dark:border-white/5 py-1.5 px-4 rounded-full flex items-center gap-2">
+                                                <span className="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-tighter">{ing.purchase_quantity} {ing.purchase_unit}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="hidden md:block text-right">
+                                            <p className="text-sm font-black text-slate-900 dark:text-white">{formatCurrency(ing.purchase_price / ing.purchase_quantity)}</p>
+                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">x {ing.purchase_unit}</p>
+                                        </div>
+
+                                        <div className="hidden md:block text-right">
+                                            <div className="text-lg font-black text-blue-600 drop-shadow-sm">{formatCurrency(ing.purchase_price)}</div>
+                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Invertido</p>
+                                        </div>
+
+                                        <div className="hidden md:flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0">
+                                            <button onClick={() => setEditingIngredient(ing)} className="size-10 rounded-xl bg-white dark:bg-slate-800 text-slate-400 hover:text-blue-600 shadow-sm border border-slate-100 dark:border-white/5 flex items-center justify-center transition-all hover:scale-110 active:scale-95">
+                                                <span className="material-symbols-outlined text-[20px]">edit_note</span>
                                             </button>
-                                            <button
-                                                onClick={() => setShowDeleteConfirm({ id: item.id, name: item.name, type: 'PRODUCTO' })}
-                                                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-50 dark:bg-red-900/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-all border border-red-100/50 dark:border-red-900/30 active:scale-95">
-                                                <span className="material-symbols-outlined text-[18px]">delete</span>
-                                                <span className="text-xs font-bold">Eliminar</span>
+                                            <button onClick={() => setShowDeleteConfirm({ id: ing.id, name: ing.name, type: 'INSUMO' })} className="size-10 rounded-xl bg-white dark:bg-slate-800 text-slate-400 hover:text-red-500 shadow-sm border border-slate-100 dark:border-white/5 flex items-center justify-center transition-all hover:scale-110 active:scale-95">
+                                                <span className="material-symbols-outlined text-[20px]">delete</span>
                                             </button>
                                         </div>
                                     </div>
-
-                                    {/* Desktop Layout */}
-                                    <div className="hidden md:grid grid-cols-12 gap-4 items-center p-3">
-                                        {/* TIPO & ICONO */}
-                                        <div className="col-span-1 flex items-center justify-center">
-                                            <div className="size-10 rounded-xl flex items-center justify-center bg-blue-50 dark:bg-blue-900/20 text-blue-500">
-                                                <span className="material-symbols-outlined text-[22px]">restaurant_menu</span>
+                                )) : (
+                                    <div className="py-32 text-center text-slate-300 flex flex-col items-center gap-6">
+                                        <div className="size-24 rounded-[32px] bg-slate-50 dark:bg-white/5 flex items-center justify-center text-slate-200 border-2 border-dashed border-slate-100 dark:border-white/10">
+                                            <span className="material-symbols-outlined text-5xl">inventory</span>
+                                        </div>
+                                        <p className="text-xs font-black uppercase tracking-[0.2em]">Depósito Vacío</p>
+                                    </div>
+                                )
+                            ) : filterType === 'RECETA' ? (
+                                displayItems.length > 0 ? displayItems.map(item => (
+                                    <div key={item.id} className="grid grid-cols-[1fr,auto] md:grid-cols-[1.5fr,1fr,1.2fr,1.2fr,0.6fr] gap-3 px-4 py-3 md:px-10 md:py-5 items-center group hover:bg-orange-50/50 dark:hover:bg-orange-500/5 transition-all animate-fade-in border-b border-slate-100 last:border-0 md:border-none">
+                                        <div className="flex items-center gap-3">
+                                            <div className="size-10 md:size-12 rounded-xl md:rounded-2xl bg-orange-50 dark:bg-orange-500/10 text-orange-500 flex items-center justify-center shrink-0 shadow-sm border border-orange-100 dark:border-orange-500/20">
+                                                <span className="material-symbols-outlined text-[18px] md:text-[20px]">skillet</span>
+                                            </div>
+                                            <div className="truncate min-w-0">
+                                                <h4 className="font-bold text-slate-800 dark:text-white text-sm md:text-base truncate tracking-tight">{item.name}</h4>
+                                                <span className="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-600 text-[8px] font-black uppercase rounded tracking-widest">Receta</span>
                                             </div>
                                         </div>
 
-                                        {/* NOMBRE */}
-                                        <div className="col-span-4">
-                                            <h4 className="font-bold text-slate-800 dark:text-white text-sm truncate" title={item.name}>{item.name}</h4>
-                                            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">PRODUCTO TERMINADO</p>
+                                        {/* Mobile Right */}
+                                        <div className="flex flex-col items-end paragraph md:hidden">
+                                            <p className="text-sm font-black text-slate-800 dark:text-white">{formatCurrency(item.totalCost)}</p>
+                                            <div className="flex gap-1 mt-1">
+                                                <button onClick={() => { const full = dishes.find(d => d.id === item.id); setEditingRecipe(full); }} className="size-8 rounded-lg bg-orange-50/50 text-orange-600 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined text-[16px]">edit</span>
+                                                </button>
+                                                <button onClick={() => setShowDeleteConfirm({ id: item.id, name: item.name, type: 'RECETA' })} className="size-8 rounded-lg bg-slate-50 text-slate-400 hover:text-red-500 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                </button>
+                                            </div>
                                         </div>
 
-                                        {/* COSTO */}
-                                        <div className="col-span-2 flex flex-col items-center">
-                                            <span className="font-bold text-slate-700 dark:text-gray-300 text-sm">{formatCurrency(item.totalCost)}</span>
+                                        <div className="hidden md:block text-center">
+                                            <span className="text-[9px] font-black bg-orange-500 text-white py-1.5 px-4 rounded-full tracking-widest uppercase">Estructural</span>
                                         </div>
 
-                                        {/* PRECIO VENTA */}
-                                        <div className="col-span-2 flex flex-col items-center">
-                                            <span className="font-black text-secondary text-sm">{formatCurrency(item.salePrice)}</span>
+                                        <div className="hidden md:block text-right">
+                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Insumos Consolidados</p>
                                         </div>
 
-                                        {/* MARGEN */}
-                                        <div className="col-span-1 flex flex-col items-center">
-                                            <span className="px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-[10px] font-black border border-green-100 dark:border-green-800/30">
-                                                {item.profitMargin}%
-                                            </span>
+                                        <div className="hidden md:block text-right">
+                                            <p className="text-lg font-black text-slate-800 dark:text-white drop-shadow-sm">{formatCurrency(item.totalCost)}</p>
+                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Costo Técnico</p>
                                         </div>
 
-                                        {/* ACCIONES */}
-                                        <div className="col-span-2 flex justify-end items-center gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    const fullItem = dishes.find(d => d.id === item.id);
-                                                    setEditingItemDish(fullItem);
-                                                }}
-                                                className="flex items-center justify-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 text-slate-500 hover:text-secondary rounded-md transition-all border border-gray-100 dark:border-gray-700 opacity-0 group-hover:opacity-100">
-                                                <span className="material-symbols-outlined text-[18px]">edit</span>
+                                        <div className="hidden md:flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                                            <button onClick={() => { const full = dishes.find(d => d.id === item.id); setEditingRecipe(full); }} className="size-10 rounded-xl bg-white dark:bg-slate-800 text-slate-400 hover:text-orange-600 shadow-sm border border-slate-100 dark:border-white/5 flex items-center justify-center transition-all hover:scale-110 active:scale-95">
+                                                <span className="material-symbols-outlined text-[20px]">edit_note</span>
                                             </button>
-                                            <button
-                                                onClick={() => setShowDeleteConfirm({ id: item.id, name: item.name, type: 'PRODUCTO' })}
-                                                className="flex items-center justify-center gap-2 p-2 bg-red-50 dark:bg-red-900/10 text-red-500 hover:bg-red-500 hover:text-white rounded-md transition-all border border-red-100/50 dark:border-red-900/30 opacity-0 group-hover:opacity-100">
-                                                <span className="material-symbols-outlined text-[18px]">delete</span>
+                                            <button onClick={() => setShowDeleteConfirm({ id: item.id, name: item.name, type: 'RECETA' })} className="size-10 rounded-xl bg-white dark:bg-slate-800 text-slate-400 hover:text-red-500 shadow-sm border border-slate-100 dark:border-white/5 flex items-center justify-center transition-all hover:scale-110 active:scale-95">
+                                                <span className="material-symbols-outlined text-[20px]">delete</span>
                                             </button>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                )) : (
+                                    <div className="py-32 text-center text-slate-300 flex flex-col items-center gap-6">
+                                        <div className="size-24 rounded-[32px] bg-slate-50 dark:bg-white/5 flex items-center justify-center text-slate-200 border-2 border-dashed border-slate-100 dark:border-white/10">
+                                            <span className="material-symbols-outlined text-5xl">skillet</span>
+                                        </div>
+                                        <p className="text-xs font-black uppercase tracking-[0.2em]">Sin Recetas Registradas</p>
+                                    </div>
+                                )
+                            ) : (
+                                // PRODUCTOS
+                                displayItems.length > 0 ? displayItems.map(item => (
+                                    <div key={item.id} className="grid grid-cols-[1fr,auto] md:grid-cols-[1.5fr,1fr,1.2fr,1.2fr,0.6fr] gap-3 px-4 py-4 md:px-10 md:py-6 items-center group hover:bg-slate-50/50 dark:hover:bg-white/5 transition-all animate-fade-in relative overflow-hidden border-b border-slate-100 last:border-0 md:border-none">
+                                        {/* Status Glow for Products */}
+
+
+                                        <div className="flex items-center gap-3">
+                                            <div className="size-10 md:size-12 rounded-xl md:rounded-2xl bg-slate-900 dark:bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 shadow-lg border border-slate-800 dark:border-white/10">
+                                                <span className="material-symbols-outlined text-[18px] md:text-[20px]">restaurant_menu</span>
+                                            </div>
+                                            <div className="truncate min-w-0">
+                                                <h4 className="font-black text-slate-800 dark:text-white text-sm md:text-lg tracking-tighter truncate">{item.name}</h4>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${item.profitMargin && item.profitMargin > 50 ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                        {item.profitMargin ? `${item.profitMargin.toFixed(0)}% Utilidad` : 'Catálogo'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Mobile Right */}
+                                        <div className="flex flex-col items-end md:hidden">
+                                            <p className="text-lg font-black text-slate-900 dark:text-white tracking-tighter">{formatCurrency(item.salePrice)}</p>
+                                            <div className="flex gap-1 mt-1">
+                                                <button onClick={() => { const full = dishes.find(d => d.id === item.id); setEditingRecipe(full); }} className="size-8 rounded-lg bg-slate-100 text-indigo-600 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined text-[16px]">edit</span>
+                                                </button>
+                                                <button onClick={() => setShowDeleteConfirm({ id: item.id, name: item.name, type: 'PRODUCTO' })} className="size-8 rounded-lg bg-slate-50 text-slate-400 hover:text-red-500 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="hidden md:block text-center">
+                                            <div className={`inline-flex items-center px-4 py-1.5 rounded-full border text-[10px] font-black tracking-widest uppercase ${item.profitMargin && item.profitMargin > 50 ? 'bg-green-100/50 border-green-200 text-green-700 dark:bg-green-500/10 dark:border-green-500/30 dark:text-green-400' : 'bg-indigo-100/50 border-indigo-200 text-indigo-700 dark:bg-indigo-500/10 dark:border-indigo-500/30 dark:text-indigo-400'}`}>
+                                                {(item.profitMargin || 0).toFixed(0)}% MARGEN
+                                            </div>
+                                        </div>
+
+                                        <div className="hidden md:block text-right">
+                                            <p className="text-sm font-black text-slate-500 dark:text-slate-400">{formatCurrency(item.totalCost)}</p>
+                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Inversión</p>
+                                        </div>
+
+                                        <div className="hidden md:block text-right">
+                                            <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter drop-shadow-sm">{formatCurrency(item.salePrice)}</p>
+                                            <p className="text-[9px] text-indigo-500 font-black uppercase tracking-[0.2em]">Público Sugerido</p>
+                                        </div>
+
+                                        <div className="hidden md:flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                                            <button onClick={() => { const full = dishes.find(d => d.id === item.id); setEditingRecipe(full); }} className="size-11 rounded-xl bg-white dark:bg-slate-800 text-slate-400 hover:text-indigo-600 shadow-sm border border-slate-100 dark:border-white/5 flex items-center justify-center transition-all hover:scale-110 active:scale-95">
+                                                <span className="material-symbols-outlined text-[20px]">edit_note</span>
+                                            </button>
+                                            <button onClick={() => setShowDeleteConfirm({ id: item.id, name: item.name, type: 'PRODUCTO' })} className="size-11 rounded-xl bg-white dark:bg-slate-800 text-slate-400 hover:text-red-500 shadow-sm border border-slate-100 dark:border-white/5 flex items-center justify-center transition-all hover:scale-110 active:scale-95">
+                                                <span className="material-symbols-outlined text-[20px]">delete</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div className="py-32 text-center text-slate-300 flex flex-col items-center gap-6">
+                                        <div className="size-24 rounded-[32px] bg-slate-50 dark:bg-white/5 flex items-center justify-center text-slate-200 border-2 border-dashed border-slate-100 dark:border-white/10">
+                                            <span className="material-symbols-outlined text-5xl">restaurant_menu</span>
+                                        </div>
+                                        <p className="text-xs font-black uppercase tracking-[0.2em]">Menú no inicializado</p>
+                                    </div>
+                                )
+                            )}
                         </div>
-                    ) : dishes.filter(d => d.sale_price > 0).length > 0 ? (
-                        <div className="flex flex-col gap-4 animate-fade-in-up">
-                            {/* Search Bar (shows when filtering yields no results) */}
-                            <div className="relative group/search">
-                                <input
-                                    className="w-full bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 pl-11 text-sm focus:border-secondary outline-none transition-all shadow-sm"
-                                    placeholder="Buscar productos..."
-                                    type="text"
-                                    value={productSearchFilter}
-                                    onChange={(e) => setProductSearchFilter(e.target.value)}
-                                />
-                                <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-secondary transition-colors">search</span>
-                            </div>
-                            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/50 dark:bg-gray-900/50">
-                                <div className="size-16 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-400 mb-4 shadow-sm">
-                                    <span className="material-symbols-outlined text-3xl">search_off</span>
-                                </div>
-                                <h3 className="text-sm font-bold text-neutral-dark dark:text-white">Sin resultados</h3>
-                                <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mt-1 text-xs">
-                                    No se encontraron productos con "{productSearchFilter}"
-                                </p>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/50 dark:bg-gray-900/50">
-                            <div className="size-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400 mb-4">
-                                <span className="material-symbols-outlined text-3xl">inventory_2</span>
-                            </div>
-                            <h3 className="text-lg font-bold text-neutral-dark dark:text-white">No tienes productos aún</h3>
-                            <button onClick={handleNewProject} className="mt-6 text-secondary font-bold hover:underline">Ir al Costeador</button>
-                        </div>
-                    )
-                )}
+                    </div>
+                </div>
 
             </main>
-            <footer className="w-full py-4 text-center text-sm text-neutral-gray/60 dark:text-slate-500 mt-auto">
-                <p>Moneda: <span className="font-bold text-secondary">COP $</span> • Medidas: <span className="font-bold">Gramos / Mililitros</span></p>
-            </footer>
-
-            {/* MODAL: CONFIGURAICON DE ELIMINACION */}
-            {/* OLD DELETE CONFIRM MODAL REMOVED (Replaced by LiquidModal above) */}
-
-            {/* MODAL: NUEVO INSUMO (Pop-up) */}
-            {showNewIngredientModal && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-background-light/60 dark:bg-background-dark/80 backdrop-blur-xl transition-opacity" onClick={() => setShowNewIngredientModal(false)}></div>
-                    <div className="relative bg-white/80 dark:bg-surface-dark/80 backdrop-blur-2xl w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-white/20 dark:border-white/10 transform transition-all scale-100 animate-fade-in-up">
-                        <div className="p-6 text-center bg-gradient-to-r from-blue-500/90 to-blue-600/90 relative overflow-hidden">
-                            <div className="absolute inset-0 bg-white/10 opacity-50 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-                            <h3 className="text-2xl font-black text-white relative z-10 mb-1">Nuevo Insumo</h3>
-                            <button onClick={() => setShowNewIngredientModal(false)} className="absolute top-4 right-4 text-white/80 hover:text-white focus:outline-none">
-                                <span className="material-symbols-outlined">close</span>
-                            </button>
-                        </div>
-                        <form onSubmit={(e) => { handleSaveIngredient(e); setShowNewIngredientModal(false); }} className="p-8 flex flex-col gap-5">
-                            <div>
-                                <label className="section-label">Nombre del Insumo</label>
-                                <input
-                                    placeholder="Ej: Harina Trigo, Fresas..."
-                                    className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-gray-400"
-                                    value={newIng.name}
-                                    onChange={e => setNewIng({ ...newIng, name: e.target.value })}
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="section-label">Precio Compra</label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">$</span>
-                                        <input
-                                            type="number"
-                                            placeholder="0"
-                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-3 pl-6 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-gray-400"
-                                            value={newIng.price}
-                                            onChange={e => setNewIng({ ...newIng, price: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="section-label">Cant. Paquete</label>
-                                    <input
-                                        type="number"
-                                        placeholder="0"
-                                        className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-gray-400"
-                                        value={newIng.qty}
-                                        onChange={e => setNewIng({ ...newIng, qty: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="section-label">Unidad de Medida</label>
-                                <div className="flex gap-1 bg-gray-50 dark:bg-background-dark p-1 rounded-xl border border-gray-200 dark:border-gray-700">
-                                    {['Und', 'Gr', 'Ml', 'Kg', 'Lt'].map(u => (
-                                        <button
-                                            key={u}
-                                            type="button"
-                                            onClick={() => setNewIng({ ...newIng, unit: u })}
-                                            className={`flex-1 py-2 px-1 rounded-lg text-xs font-bold transition-all ${newIng.unit === u ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-500 ring-1 ring-black/5' : 'text-gray-400 hover:text-gray-600'}`}
-                                        >
-                                            {u}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            <button
-                                type="submit"
-                                disabled={isSubmitting || !newIng.name || !newIng.price || !newIng.qty}
-                                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                            >
-                                {isSubmitting ? <span className="material-symbols-outlined animate-spin text-sm">refresh</span> : 'CREAR INSUMO'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL: NUEVA RECETA (Pop-up) */}
-            {showNewRecipeModal && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="absolute inset-0 bg-background-light/60 dark:bg-background-dark/80 backdrop-blur-xl transition-opacity" onClick={() => setShowNewRecipeModal(false)}></div>
-                    <div className="relative bg-white/80 dark:bg-surface-dark/80 backdrop-blur-2xl w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-white/20 dark:border-white/10 transform transition-all scale-100 animate-fade-in-up my-auto max-h-[90vh] overflow-y-auto">
-                        <div className="p-6 text-center bg-gradient-to-r from-orange-500/90 to-amber-500/90 relative overflow-hidden sticky top-0 z-10">
-                            <div className="absolute inset-0 bg-white/10 opacity-50 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-                            <h3 className="text-2xl font-black text-white relative z-10 mb-1">Nueva Receta Base</h3>
-                            <button onClick={() => setShowNewRecipeModal(false)} className="absolute top-4 right-4 text-white/80 hover:text-white focus:outline-none">
-                                <span className="material-symbols-outlined">close</span>
-                            </button>
-                        </div>
-                        <div className="p-6 flex flex-col gap-4">
-                            <div>
-                                <label className="section-label">Nombre de la Receta</label>
-                                <input
-                                    placeholder="Ej: Masa de Crepes, Salsa Base..."
-                                    className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm focus:border-orange-500 outline-none placeholder:text-gray-300 dark:placeholder:text-gray-600"
-                                    value={recipeName}
-                                    onChange={e => setRecipeName(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
-                                <label className="section-label mb-2">Añadir Insumos</label>
-                                <div className="relative group/search mb-3">
-                                    <input
-                                        className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 pl-10 text-sm focus:border-orange-500 outline-none transition-all"
-                                        placeholder="Buscar ingrediente..."
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                    />
-                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-orange-500 transition-colors">search</span>
-
-                                    {/* Resultados de búsqueda */}
-                                    {searchResults.length > 0 && (
-                                        <div className="absolute top-full left-0 w-full mt-2 bg-white dark:bg-surface-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
-                                            {searchResults.map((ing) => (
-                                                <button
-                                                    key={ing.id}
-                                                    onClick={() => { setSelectedIngredient(ing); setSearchQuery(ing.name); setSearchResults([]); }}
-                                                    className="w-full text-left px-4 py-3 hover:bg-orange-50 dark:hover:bg-orange-900/20 flex items-center justify-between border-b border-gray-50 dark:border-gray-800 last:border-0"
-                                                >
-                                                    <span className="font-bold text-slate-700 dark:text-gray-200 text-xs">{ing.name}</span>
-                                                    <span className="text-[9px] bg-orange-100 dark:bg-orange-900/40 text-orange-600 px-2 py-0.5 rounded-full font-bold">INSUMO</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Inputs de cantidad/precio */}
-                                {selectedIngredient ? (
-                                    <div className="bg-orange-50 dark:bg-orange-900/10 p-4 rounded-xl border border-orange-100 dark:border-orange-900/30 animate-fade-in">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <span className="text-[10px] font-bold text-orange-600 uppercase">Cantidad a Usar</span>
-                                            <button onClick={() => setSelectedIngredient(null)} className="text-orange-400 hover:text-orange-600 transition-colors">
-                                                <span className="material-symbols-outlined text-[18px]">close</span>
-                                            </button>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="number"
-                                                placeholder="0"
-                                                className="flex-1 bg-white dark:bg-background-dark border border-orange-200 dark:border-orange-800 rounded-lg p-2.5 text-sm focus:border-orange-500 outline-none"
-                                                value={useQty}
-                                                onChange={e => setUseQty(e.target.value)}
-                                            />
-                                            <div className="w-20 bg-white dark:bg-background-dark border border-orange-200 dark:border-orange-800 rounded-lg p-2.5 text-sm flex items-center justify-center font-bold text-orange-600">
-                                                {selectedIngredient.purchase_unit}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : searchQuery.length >= 2 && (
-                                    <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 flex flex-col gap-3 animate-fade-in">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Item Nuevo - Definir Precio</p>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div className="relative">
-                                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]">$</span>
-                                                <input
-                                                    type="number"
-                                                    placeholder="Precio"
-                                                    className="w-full bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-lg p-2.5 pl-4 text-xs outline-none focus:border-secondary"
-                                                    value={manualPrice}
-                                                    onChange={e => setManualPrice(e.target.value)}
-                                                />
-                                            </div>
-                                            <input
-                                                type="number"
-                                                placeholder="Rinde"
-                                                className="w-full bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-lg p-2.5 text-xs outline-none focus:border-secondary"
-                                                value={manualYield}
-                                                onChange={e => setManualYield(e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="flex gap-1">
-                                            {['Und', 'Gr', 'Ml', 'Kg', 'Lt'].map(u => (
-                                                <button
-                                                    key={u}
-                                                    onClick={() => setUseUnit(u)}
-                                                    className={`flex-1 py-1 rounded-md text-[9px] font-bold border transition-all ${useUnit === u ? 'bg-secondary text-white border-secondary' : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700'}`}
-                                                >
-                                                    {u}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <button
-                                    onClick={handleAddItemToRecipe}
-                                    disabled={!searchQuery || (!selectedIngredient && (!manualPrice || !manualYield))}
-                                    className="w-full mt-4 py-3 bg-slate-800 dark:bg-surface-light text-white dark:text-slate-900 rounded-xl font-bold text-xs hover:bg-black dark:hover:bg-white transition-all active:scale-95 disabled:opacity-50"
-                                >
-                                    AÑADIR A RECETA
-                                </button>
-
-                                {/* INGREDIENTES EN LA RECETA ACTUAL */}
-                                {tempRecipeIngredients.length > 0 && (
-                                    <div className="mt-4 pt-4 border-t border-gray-50 dark:border-gray-800 flex flex-col gap-2">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Insumos en esta receta</p>
-                                        <div className="max-h-40 overflow-y-auto pr-1 flex flex-col gap-2">
-                                            {tempRecipeIngredients.map(item => (
-                                                <div key={item.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/40 p-2.5 rounded-lg text-[11px] animate-fade-in group/item">
-                                                    <div className="flex flex-col">
-                                                        <span className="font-bold text-slate-700 dark:text-gray-300 truncate max-w-[140px]">{item.name}</span>
-                                                        <span className="text-[9px] text-gray-400">{formatCurrency(item.cost)}</span>
-                                                    </div>
-                                                    <button onClick={() => setTempRecipeIngredients(tempRecipeIngredients.filter(i => i.id !== item.id))} className="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover/item:opacity-100">
-                                                        <span className="material-symbols-outlined text-sm">close</span>
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <div className="mt-4 p-4 bg-orange-500 rounded-2xl text-white text-center shadow-lg shadow-orange-500/20">
-                                            <p className="text-[10px] font-bold uppercase opacity-80">Costo Total Receta</p>
-                                            <p className="text-2xl font-black">{formatCurrency(tempRecipeIngredients.reduce((acc, i) => acc + i.cost, 0))}</p>
-                                        </div>
-
-                                        <button
-                                            onClick={(e) => { handleSaveRecipe(e as any); setShowNewRecipeModal(false); }}
-                                            disabled={!recipeName || isSubmitting}
-                                            className="mt-2 w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black rounded-2xl active:scale-95 transition-all text-sm shadow-xl flex items-center justify-center gap-2"
-                                        >
-                                            {isSubmitting ? <span className="material-symbols-outlined animate-spin">refresh</span> : 'GUARDAR RECETA BASE'}
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL: EDICIÓN DE INSUMO (Liquid Style) */}
-            {editingItem && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-background-light/60 dark:bg-background-dark/80 backdrop-blur-xl transition-opacity" onClick={() => setEditingItem(null)}></div>
-                    <div className="relative bg-white/80 dark:bg-surface-dark/80 backdrop-blur-2xl w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-white/20 dark:border-white/10 transform transition-all scale-100 animate-fade-in-up">
-                        <div className="p-6 text-center bg-gradient-to-r from-blue-500/90 to-blue-600/90 relative overflow-hidden">
-                            <div className="absolute inset-0 bg-white/10 opacity-50 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-                            <h3 className="text-2xl font-black text-white relative z-10 mb-1">Editar Insumo</h3>
-                            <button onClick={() => setEditingItem(null)} className="absolute top-4 right-4 text-white/80 hover:text-white focus:outline-none">
-                                <span className="material-symbols-outlined">close</span>
-                            </button>
-                        </div>
-                        <form onSubmit={handleUpdateIngredient} className="p-8 flex flex-col gap-6">
-                            <div>
-                                <label className="section-label">Nombre del Insumo</label>
-                                <input
-                                    className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 px-4 text-slate-800 dark:text-white font-medium focus:border-blue-500 outline-none transition-all"
-                                    value={editingItem.name}
-                                    onChange={e => setEditingItem({ ...editingItem, name: e.target.value })}
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="section-label">Precio Compra</label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
-                                        <input
-                                            type="number"
-                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 pl-6 pr-4 text-slate-800 dark:text-white font-medium focus:border-blue-500 outline-none transition-all"
-                                            value={editingItem.purchase_price}
-                                            onChange={e => setEditingItem({ ...editingItem, purchase_price: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="section-label">Cantidad Paquete</label>
-                                    <input
-                                        type="number"
-                                        className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-4 px-4 text-slate-800 dark:text-white font-medium focus:border-blue-500 outline-none transition-all"
-                                        value={editingItem.purchase_quantity}
-                                        onChange={e => setEditingItem({ ...editingItem, purchase_quantity: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="section-label">Unidad de Medida</label>
-                                <div className="flex gap-2 bg-gray-50 dark:bg-background-dark p-1 rounded-lg border border-gray-200 dark:border-gray-700">
-                                    {['Und', 'Gr', 'Ml', 'Kg', 'Lt'].map(u => (
-                                        <button
-                                            key={u}
-                                            type="button"
-                                            onClick={() => setEditingItem({ ...editingItem, purchase_unit: u })}
-                                            className={`flex-1 py-2 rounded-md text-xs font-bold transition-all ${editingItem.purchase_unit === u ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-500' : 'text-gray-400 hover:text-gray-600'}`}
-                                        >
-                                            {u}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            <button
-                                type="submit"
-                                disabled={isSubmitting}
-                                className="w-full bg-blue-500 hover:bg-blue-600 font-bold text-white py-4 rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-                            >
-                                {isSubmitting ? <span className="material-symbols-outlined animate-spin">refresh</span> : 'GUARDAR CAMBIOS'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL: EDICIÓN DE MENÚ / PRODUCTO (Liquid Style) */}
-            {editingItemDish && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="absolute inset-0 bg-background-light/60 dark:bg-background-dark/80 backdrop-blur-xl transition-opacity" onClick={() => setEditingItemDish(null)}></div>
-                    <div className="relative bg-white/80 dark:bg-surface-dark/80 backdrop-blur-2xl w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-white/20 dark:border-white/10 transform transition-all scale-100 animate-fade-in-up my-auto">
-                        <div className={`p-6 text-center relative overflow-hidden ${editingItemDish.sale_price > 0 ? 'bg-gradient-to-r from-blue-600/90 to-indigo-600/90' : 'bg-gradient-to-r from-orange-500/90 to-amber-500/90'}`}>
-                            <div className="absolute inset-0 bg-white/10 opacity-50 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-                            <h3 className="text-2xl font-black text-white relative z-10 mb-1">Editar {editingItemDish.sale_price > 0 ? 'Producto' : 'Receta'}</h3>
-                            <button onClick={() => setEditingItemDish(null)} className="absolute top-4 right-4 text-white/80 hover:text-white focus:outline-none">
-                                <span className="material-symbols-outlined">close</span>
-                            </button>
-                        </div>
-                        <form onSubmit={handleUpdateDish} className="p-6 md:p-8 flex flex-col gap-5 max-h-[80vh] overflow-y-auto">
-                            <div>
-                                <label className="section-label">Nombre del Menú</label>
-                                <input
-                                    className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
-                                    value={editingItemDish.name}
-                                    onChange={e => setEditingItemDish({ ...editingItemDish, name: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="section-label">Costo Producción</label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
-                                        <input
-                                            readOnly
-                                            className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl py-3 pl-6 pr-4 text-slate-500 dark:text-gray-400 font-bold outline-none cursor-not-allowed"
-                                            value={editingDishIngredients.reduce((acc, i) => acc + (parseFloat(i.cost_snapshot) || 0), 0).toFixed(2)}
-                                        />
-                                    </div>
-                                    <p className="text-[10px] text-gray-400 mt-1">Calculado automáticamente</p>
-                                </div>
-                                {editingItemDish.sale_price > 0 && (
-                                    <div>
-                                        <label className="section-label">Precio Venta</label>
-                                        <div className="relative">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
-                                            <input
-                                                type="number"
-                                                className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 pl-6 pr-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
-                                                value={editingItemDish.sale_price}
-                                                onChange={e => setEditingItemDish({ ...editingItemDish, sale_price: e.target.value })}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* SECCIÓN DE INGREDIENTES EN EDICIÓN */}
-                            <div className="bg-gray-50 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
-                                <label className="section-label mb-3 block">Insumos Relacionados</label>
-
-                                {/* Buscador dentro del Modal */}
-                                <div className="relative mb-4">
-                                    <input
-                                        className="w-full bg-white dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-lg py-2.5 px-3 pl-9 text-xs focus:border-secondary outline-none"
-                                        placeholder="Añadir más insumos..."
-                                        value={editSearchQuery}
-                                        onChange={e => setEditSearchQuery(e.target.value)}
-                                    />
-                                    <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-lg">search</span>
-
-                                    {editSearchResults.length > 0 && (
-                                        <div className="absolute top-full left-0 w-full mt-1 bg-white dark:bg-surface-dark border border-gray-100 dark:border-gray-800 rounded-lg shadow-xl z-[210] overflow-hidden">
-                                            {editSearchResults.map(ing => (
-                                                <button
-                                                    key={ing.id}
-                                                    type="button"
-                                                    onClick={() => { setEditSelectedIng(ing); setEditSearchQuery(ing.name); setEditSearchResults([]); }}
-                                                    className="w-full text-left px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-[11px] font-bold border-b border-gray-50 dark:border-gray-800 last:border-0"
-                                                >
-                                                    {ing.name}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {editSelectedIng && (
-                                    <div className="flex gap-2 mb-4 animate-fade-in items-end">
-                                        <div className="flex-1">
-                                            <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 block">¿PARA CUÁNTO ALCANZA? ({editSelectedIng.purchase_unit})</label>
-                                            <input
-                                                type="number"
-                                                className="w-full bg-white dark:bg-background-dark border border-secondary/30 rounded-lg p-2 text-xs outline-none"
-                                                value={editUseQty}
-                                                onChange={e => setEditUseQty(e.target.value)}
-                                                placeholder="0"
-                                            />
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={handleAddToEditing}
-                                            className="bg-secondary text-white p-2 rounded-lg hover:bg-secondary-dark transition-all"
-                                        >
-                                            <span className="material-symbols-outlined text-xl">add</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setEditSelectedIng(null)}
-                                            className="bg-gray-200 dark:bg-gray-700 text-gray-500 p-2 rounded-lg"
-                                        >
-                                            <span className="material-symbols-outlined text-xl">close</span>
-                                        </button>
-                                    </div>
-                                )}
-
-                                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                    {editingDishIngredients.length > 0 ? (
-                                        editingDishIngredients.map((item, idx) => (
-                                            <div key={item.id || idx} className="flex justify-between items-center bg-white dark:bg-background-dark p-2 rounded-lg border border-gray-100 dark:border-gray-800 shadow-sm">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[11px] font-bold text-slate-700 dark:text-gray-200">{item.name}</span>
-                                                    <span className="text-[9px] text-gray-400">{item.used_quantity} {item.used_unit}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-xs font-black text-slate-800 dark:text-white">{formatCurrency(item.cost_snapshot)}</span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleRemoveFromEditing(item.id || item.name)}
-                                                        className="text-gray-300 hover:text-red-500 transition-colors"
-                                                    >
-                                                        <span className="material-symbols-outlined text-sm">delete</span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <p className="text-center py-4 text-[11px] text-gray-400 italic">No hay insumos cargados.</p>
-                                    )}
-                                </div>
-                            </div>
-
-                            {editingItemDish.sale_price > 0 && (
-                                <div>
-                                    <label className="section-label">Margen de Ganancia (%)</label>
-                                    <div className="relative">
-                                        <input
-                                            type="number"
-                                            className="w-full bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-gray-700 rounded-xl py-3 px-4 text-slate-800 dark:text-white font-medium focus:border-secondary outline-none transition-all"
-                                            value={editingItemDish.profit_margin}
-                                            onChange={e => setEditingItemDish({ ...editingItemDish, profit_margin: e.target.value })}
-                                        />
-                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
-                                    </div>
-                                </div>
-                            )}
-
-                            <button
-                                type="submit"
-                                disabled={isSubmitting}
-                                className={`w-full font-bold text-white py-4 rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${editingItemDish.sale_price > 0 ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20' : 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/20'}`}
-                            >
-                                {isSubmitting ? <span className="material-symbols-outlined animate-spin">refresh</span> : 'ACTUALIZAR DATOS'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

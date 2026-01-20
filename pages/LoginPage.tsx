@@ -120,7 +120,7 @@ const LoginPage: React.FC = () => {
                     <div className="p-6 pb-4">
                         {/* Logo */}
                         <div className="flex justify-center mb-6">
-                            <div className="p-2 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10">
+                            <div className="p-2 bg-white backdrop-blur-sm rounded-2xl border border-white/10">
                                 <img src="/images/logos/sanchez2-logo.png" alt="Logo" className="h-8 opacity-90" />
                             </div>
                         </div>
@@ -134,8 +134,8 @@ const LoginPage: React.FC = () => {
                                     setSuccessMsg('');
                                 }}
                                 className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all duration-300 ${activeTab === 'signin'
-                                        ? 'bg-white/10 text-white shadow-lg'
-                                        : 'text-white/50 hover:text-white/70'
+                                    ? 'bg-white/10 text-white shadow-lg'
+                                    : 'text-white/50 hover:text-white/70'
                                     }`}>
                                 Iniciar Sesión
                             </button>
@@ -146,8 +146,8 @@ const LoginPage: React.FC = () => {
                                     setSuccessMsg('');
                                 }}
                                 className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all duration-300 ${activeTab === 'signup'
-                                        ? 'bg-white/10 text-white shadow-lg'
-                                        : 'text-white/50 hover:text-white/70'
+                                    ? 'bg-white/10 text-white shadow-lg'
+                                    : 'text-white/50 hover:text-white/70'
                                     }`}>
                                 Crear Cuenta
                             </button>
