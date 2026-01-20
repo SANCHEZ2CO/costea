@@ -182,12 +182,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ isOpen, onClose, onSuccess, e
                 await supabase.from('dishes').update({
                     name: recipeName,
                     total_cost: totalCost,
-                    // We preserve sale_price and margin if they existed, or set to 0 if we ignore them. 
-                    // User said "precio de venta sugerido no es necesario", so we can leave them as is or update cost only.
-                    // Ideally we should update the margin based on new cost if sPrice exists.
-                    // For now let's just update cost.
-                    total_cost: totalCost,
-                    // Re-calculate margin if sale_price exists
+                    // Re-calculate margin if sale_price exists using the new cost
                     profit_margin: editingRecipe.sale_price > 0 ? ((editingRecipe.sale_price - totalCost) / editingRecipe.sale_price) * 100 : 0
                 }).eq('id', editingRecipe.id);
 
