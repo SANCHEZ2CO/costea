@@ -5,6 +5,7 @@ import HomePage from './pages/HomePage';
 import CostingEnginePage from './pages/CostingEnginePage';
 import ResultsPage from './pages/ResultsPage';
 import InventoryPage from './pages/InventoryPage';
+import SalesPage from './pages/SalesPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import LiquidLoader from './components/LiquidLoader';
@@ -98,6 +99,11 @@ const App: React.FC = () => {
                             <Route path="/settings" element={
                                 <ProtectedRoute>
                                     <SettingsPage />
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/sales" element={
+                                <ProtectedRoute>
+                                    <SalesPage />
                                 </ProtectedRoute>
                             } />
                         </Routes>

@@ -3,17 +3,48 @@ import { useNavigate } from 'react-router-dom';
 import HeaderSimple from '../components/HeaderSimple';
 import { useApp, THEME_CONFIGS } from '../context/AppContext';
 import LiquidModal from '../components/LiquidModal';
-import { ThemeName } from '../types';
+import { ThemeName, PaymentMethod } from '../types';
+import { supabase } from '../services/supabaseClient';
 
 const SettingsPage: React.FC = () => {
     const navigate = useNavigate();
-    const { settings, organization, updateSettings, updateOrganization, theme, setTheme } = useApp();
+    const { settings, organization, updateSettings, updateOrganization, theme, setTheme, fixedCosts, addFixedCost, removeFixedCost } = useApp();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Local state for form handling before saving
     const [localOrg, setLocalOrg] = useState(organization);
     const [localSettings, setLocalSettings] = useState(settings);
+
     const [isDirty, setIsDirty] = useState(false);
+
+    // Payment Methods State
+    const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+    const [newPaymentName, setNewPaymentName] = useState('');
+
+    useEffect(() => {
+        fetchPaymentMethods();
+    }, []);
+
+    const fetchPaymentMethods = async () => {
+        const { data } = await supabase.from('payment_methods').select('*').order('created_at');
+        if (data) setPaymentMethods(data);
+    };
+
+    const handleAddPaymentMethod = async () => {
+        if (!newPaymentName.trim()) return;
+        const { data, error } = await supabase.from('payment_methods').insert([{ name: newPaymentName, active: true }]).select().single();
+        if (data) {
+            setPaymentMethods(prev => [...prev, data]);
+            setNewPaymentName('');
+        }
+    };
+
+    const togglePaymentMethod = async (id: string, currentStatus: boolean) => {
+        const { error } = await supabase.from('payment_methods').update({ active: !currentStatus }).eq('id', id);
+        if (!error) {
+            setPaymentMethods(prev => prev.map(pm => pm.id === id ? { ...pm, active: !currentStatus } : pm));
+        }
+    };
 
     // Modal State
     const [modal, setModal] = useState<{
@@ -173,8 +204,8 @@ const SettingsPage: React.FC = () => {
                                 key={themeConfig.name}
                                 onClick={() => handleThemeChange(themeConfig.name)}
                                 className={`theme-selector-card relative group rounded-2xl p-4 border-2 transition-all duration-300 overflow-hidden ${theme === themeConfig.name
-                                        ? 'border-[var(--theme-accent)] ring-4 ring-[var(--theme-accent)]/20 selected'
-                                        : 'border-transparent hover:border-white/20'
+                                    ? 'border-[var(--theme-accent)] ring-4 ring-[var(--theme-accent)]/20 selected'
+                                    : 'border-transparent hover:border-white/20'
                                     }`}
                                 style={{
                                     backgroundColor: themeConfig.preview.bg,
@@ -343,6 +374,181 @@ const SettingsPage: React.FC = () => {
                                         <span className="material-symbols-outlined absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-sm" style={{ color: 'var(--theme-text-secondary)' }}>expand_more</span>
                                     </div>
                                 </div>
+                            </div>
+                        </section>
+
+                        {/* Payment Methods Section */}
+                        <section className="glass-card rounded-3xl p-6 border transition-all duration-500" style={{ backgroundColor: 'var(--theme-bg-card)', borderColor: 'var(--theme-border)' }}>
+                            <div className="flex items-center gap-3 mb-6">
+                                <span className={`material-symbols-outlined ${theme === 'feminine' ? 'text-pink-400' : 'text-teal-500'}`}>payments</span>
+                                <h3 className="font-bold" style={{ color: 'var(--theme-text-primary)' }}>Métodos de Pago</h3>
+                            </div>
+
+                            <div className="flex gap-2 mb-4">
+                                <input
+                                    type="text"
+                                    placeholder="Nuevo método (ej: Rappi)"
+                                    className="flex-1 bg-transparent border rounded-xl px-4 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/20"
+                                    style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text-primary)' }}
+                                    value={newPaymentName}
+                                    onChange={(e) => setNewPaymentName(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAddPaymentMethod()}
+                                />
+                                <button onClick={handleAddPaymentMethod} className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl px-4 py-2 font-black uppercase text-[10px] tracking-wider">
+                                    Agregar
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                {paymentMethods.map(pm => (
+                                    <div key={pm.id} className={`p-3 rounded-xl border flex items-center justify-between group cursor-pointer transition-all ${pm.active ? 'bg-green-50/50 border-green-200 dark:bg-green-500/10 dark:border-green-500/30' : 'bg-slate-50 border-slate-200 opacity-60 dark:bg-white/5 dark:border-white/5'}`} onClick={() => togglePaymentMethod(pm.id, pm.active)}>
+                                        <span className={`text-xs font-black uppercase tracking-wide ${pm.active ? 'text-green-700 dark:text-green-400' : 'text-slate-500'}`}>{pm.name}</span>
+                                        <div className={`w-3 h-3 rounded-full ${pm.active ? 'bg-green-500' : 'bg-slate-300'}`} />
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+
+                        {/* Cost Structure / Fixed Costs Section */}
+                        <section className="glass-card rounded-3xl p-6 border transition-all duration-500" style={{ backgroundColor: 'var(--theme-bg-card)', borderColor: 'var(--theme-border)' }}>
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-3">
+                                    <span className={`material-symbols-outlined ${themeAccent.accent}`}>account_balance_wallet</span>
+                                    <div>
+                                        <h3 className="font-bold" style={{ color: 'var(--theme-text-primary)' }}>Gastos Operativos</h3>
+                                        <p className="text-xs font-medium" style={{ color: 'var(--theme-text-secondary)' }}>Configura tus costos fijos mensuales.</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="text-right">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: 'var(--theme-text-secondary)' }}>Estructura de Costos</span>
+                                        <span className={`text-sm font-black ${themeAccent.accent}`}>{fixedCosts.length > 0 ? (fixedCosts.length >= 3 ? '100% Definida' : '50% Progreso') : '0% Iniciado'}</span>
+                                    </div>
+                                    <div className="w-16 h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                                        <div
+                                            className={`h-full rounded-full transition-all duration-1000 ${theme === 'feminine' ? 'bg-pink-500' : theme === 'galaxy' ? 'bg-purple-500' : 'bg-blue-500'}`}
+                                            style={{ width: fixedCosts.length >= 3 ? '100%' : fixedCosts.length > 0 ? '50%' : '5%' }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Add Fixed Cost Form */}
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 mb-6 p-4 rounded-2xl border border-dashed" style={{ borderColor: 'var(--theme-border)', backgroundColor: 'var(--theme-bg-secondary)' }}>
+                                <div className="sm:col-span-4">
+                                    <label className="block text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--theme-text-secondary)' }}>Nombre del Gasto</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ej: Arriendo Local"
+                                        className="w-full bg-transparent border-b outline-none py-1 text-sm font-bold transition-colors focus:border-current"
+                                        style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text-primary)' }}
+                                        onKeyDown={async (e) => {
+                                            if (e.key === 'Enter') {
+                                                const input = e.currentTarget;
+                                                const val = input.value.trim();
+                                                if (val) {
+                                                    // Quick add for now, ideally full form
+                                                    // For MVP sprint, we might want a proper button or modal, but let's do a quick inline add
+                                                    const amountInput = input.parentElement?.nextElementSibling?.querySelector('input');
+                                                    const amount = parseFloat(amountInput?.value || '0');
+                                                    if (amount > 0) {
+                                                        await addFixedCost({
+                                                            name: val,
+                                                            amount: amount,
+                                                            frequency: 'mensual',
+                                                            paymentDay: 1 // Default
+                                                        });
+                                                        input.value = '';
+                                                        if (amountInput) amountInput.value = '';
+                                                    }
+                                                }
+                                            }
+                                        }}
+                                        id="new-cost-name"
+                                    />
+                                </div>
+                                <div className="sm:col-span-3">
+                                    <label className="block text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--theme-text-secondary)' }}>Monto</label>
+                                    <input
+                                        type="number"
+                                        placeholder="0"
+                                        className="w-full bg-transparent border-b outline-none py-1 text-sm font-bold transition-colors focus:border-current"
+                                        style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text-primary)' }}
+                                        id="new-cost-amount"
+                                    />
+                                </div>
+                                <div className="sm:col-span-3">
+                                    <label className="block text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--theme-text-secondary)' }}>Frecuencia</label>
+                                    <select
+                                        className="w-full bg-transparent border-b outline-none py-1 text-sm font-bold cursor-pointer"
+                                        style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text-primary)' }}
+                                        id="new-cost-freq"
+                                    >
+                                        <option value="mensual">Mensual</option>
+                                        <option value="quincenal">Quincenal</option>
+                                    </select>
+                                </div>
+                                <div className="sm:col-span-2 flex items-end">
+                                    <button
+                                        onClick={async () => {
+                                            const nameInput = document.getElementById('new-cost-name') as HTMLInputElement;
+                                            const amountInput = document.getElementById('new-cost-amount') as HTMLInputElement;
+                                            const freqInput = document.getElementById('new-cost-freq') as HTMLSelectElement;
+
+                                            if (nameInput.value && amountInput.value) {
+                                                await addFixedCost({
+                                                    name: nameInput.value,
+                                                    amount: parseFloat(amountInput.value),
+                                                    frequency: freqInput.value as any,
+                                                    paymentDay: 1
+                                                });
+                                                nameInput.value = '';
+                                                amountInput.value = '';
+                                            }
+                                        }}
+                                        className={`w-full py-1.5 rounded-lg text-xs font-bold text-white transition-transform active:scale-95 ${theme === 'feminine' ? 'bg-pink-500 hover:bg-pink-600' : 'bg-indigo-500 hover:bg-indigo-600'}`}
+                                    >
+                                        Agregar
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Bento Grid of Costs */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                {fixedCosts.map((cost) => (
+                                    <div key={cost.id} className="group relative rounded-2xl p-4 border transition-all hover:shadow-md" style={{ backgroundColor: 'var(--theme-bg-secondary)', borderColor: 'var(--theme-border)' }}>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className={`p-2 rounded-xl ${themeAccent.accentBg} ${themeAccent.accent}`}>
+                                                <span className="material-symbols-outlined text-[20px]">
+                                                    {cost.name.toLowerCase().includes('internet') ? 'wifi' :
+                                                        cost.name.toLowerCase().includes('arriendo') ? 'store' :
+                                                            cost.name.toLowerCase().includes('luz') ? 'bolt' :
+                                                                cost.name.toLowerCase().includes('agua') ? 'water_drop' : 'paid'}
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={() => removeFixedCost(cost.id)}
+                                                className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-red-50 text-red-400 transition-all"
+                                            >
+                                                <span className="material-symbols-outlined text-[18px]">delete</span>
+                                            </button>
+                                        </div>
+                                        <h4 className="font-bold text-sm truncate" style={{ color: 'var(--theme-text-primary)' }}>{cost.name}</h4>
+                                        <p className="font-black text-lg mt-1" style={{ color: 'var(--theme-text-primary)' }}>
+                                            ${cost.amount.toLocaleString()}
+                                        </p>
+                                        <div className="flex items-center gap-1 mt-2">
+                                            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400">
+                                                {cost.frequency}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                                {fixedCosts.length === 0 && (
+                                    <div className="col-span-full py-8 text-center opacity-50">
+                                        <p className="text-sm font-medium" style={{ color: 'var(--theme-text-secondary)' }}>No has agregado gastos fijos aún.</p>
+                                    </div>
+                                )}
                             </div>
                         </section>
 

@@ -73,3 +73,60 @@ export interface ThemeConfig {
         text: string;
     };
 }
+
+export interface FixedCost {
+    id: string;
+    name: string;
+    amount: number;
+    frequency: 'mensual' | 'quincenal';
+    paymentDay: number;
+}
+
+export interface Customer {
+    id: string;
+    name: string;
+    phone: string;
+    email: string;
+    city: string;
+}
+
+export interface Sale {
+    id: string;
+    created_at: string;
+    total: number;
+    paymentMethod: 'nequi' | 'daviplata' | 'efectivo' | 'transferencia';
+    customer_id?: string;
+    items: SaleItem[];
+}
+
+export interface SaleItem {
+    id: string;
+    sale_id: string;
+    dish_id: string;
+    quantity: number;
+    price: number;
+    extras?: string; // JSON string or simple text for now
+}
+
+export interface PaymentMethod {
+    id: string;
+    name: string;
+    active: boolean;
+}
+
+export interface InventoryMovement {
+    id: string;
+    ingredient_id: string;
+    type: 'COMPRA' | 'VENTA' | 'AJUSTE';
+    quantity: number;
+    date: string;
+    description?: string;
+}
+
+export interface FixedExpense {
+    id: string;
+    name: string;
+    amount: number;
+    frequency: 'mensual' | 'quincenal' | 'anual';
+    category?: string;
+}

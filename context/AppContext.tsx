@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { ProjectState, CostItem, InventoryItem, AppSettings, OrganizationSettings, ThemeName, ThemeConfig } from '../types';
+import { ProjectState, CostItem, InventoryItem, AppSettings, OrganizationSettings, ThemeName, ThemeConfig, FixedExpense } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
 
@@ -41,6 +41,7 @@ interface AppContextType {
     // Settings
     settings: AppSettings;
     organization: OrganizationSettings;
+    fixedCosts: FixedExpense[];
     updateSettings: (settings: Partial<AppSettings>) => void;
     updateOrganization: (org: Partial<OrganizationSettings>) => void;
 
@@ -53,6 +54,8 @@ interface AppContextType {
     updateLaborCost: (cost: number, minutes: number) => void;
     saveToInventory: (item: InventoryItem) => void;
     resetProject: () => void;
+    addFixedCost: (cost: Omit<FixedExpense, 'id'>) => Promise<FixedExpense | undefined>;
+    removeFixedCost: (id: string) => Promise<void>;
     // Auth
     user: User | null;
     session: Session | null;
@@ -256,12 +259,54 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setProject(defaultState);
     };
 
+    // Fixed Costs State
+    const [fixedCosts, setFixedCosts] = useState<FixedExpense[]>([]);
+
+    // Fetch Fixed Costs
+    const fetchFixedCosts = async () => {
+        const { data, error } = await supabase
+            .from('fixed_expenses')
+            .select('*')
+            .order('created_at', { ascending: true });
+
+        if (data) setFixedCosts(data);
+    };
+
+    useEffect(() => {
+        fetchFixedCosts();
+    }, [user]);
+
+    const addFixedCost = async (cost: Omit<FixedExpense, 'id'>) => {
+        const { data, error } = await supabase
+            .from('fixed_expenses')
+            .insert([cost])
+            .select()
+            .single();
+
+        if (data) {
+            setFixedCosts(prev => [...prev, data]);
+            return data;
+        }
+    };
+
+    const removeFixedCost = async (id: string) => {
+        const { error } = await supabase
+            .from('fixed_expenses')
+            .delete()
+            .eq('id', id);
+
+        if (!error) {
+            setFixedCosts(prev => prev.filter(c => c.id !== id));
+        }
+    };
+
     return (
         <AppContext.Provider value={{
             project,
             inventory,
             settings,
             organization,
+            fixedCosts,
             updateSettings,
             updateOrganization,
             updateProjectName,
@@ -273,6 +318,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             updateLaborCost,
             saveToInventory,
             resetProject,
+            addFixedCost,
+            removeFixedCost,
             user,
             session,
             loading,
