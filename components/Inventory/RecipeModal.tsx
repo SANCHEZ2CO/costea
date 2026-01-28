@@ -51,9 +51,9 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ isOpen, onClose, onSuccess, e
                             db_id: d.ingredient_id,
                             name: d.name,
                             purchase_price: 0, // Not vital for display as we have valid snapshot cost
-                            purchase_quantity: 0,
+                            purchase_quantity: 0, // Stock is managed through purchases, not directly
                             purchase_unit: d.used_unit,
-                            // Mapped to CostingEngine structure somewhat
+                            // Mapped to CostingEngine structure
                             cost: d.cost_snapshot,
                             usedQty: d.used_quantity,
                             usedUnit: d.used_unit

@@ -26,7 +26,8 @@ const OutflowModal: React.FC<OutflowModalProps> = ({ isOpen, onClose, onSuccess,
     const [purchaseCost, setPurchaseCost] = useState('');
     const [ingredientSearch, setIngredientSearch] = useState('');
     const [showCreateIngredient, setShowCreateIngredient] = useState(false);
-    const [newIngredientUnit, setNewIngredientUnit] = useState('Kg');
+    const [newIngredientUnit, setNewIngredientUnit] = useState('g');
+    const [newIngredientPresentationQty, setNewIngredientPresentationQty] = useState('');
 
     // Expense Mode State
     const [selectedCategoryId, setSelectedCategoryId] = useState('');
@@ -145,15 +146,33 @@ const OutflowModal: React.FC<OutflowModalProps> = ({ isOpen, onClose, onSuccess,
         setLoading(true);
         try {
             const { data: userData } = await supabase.auth.getUser();
+
+            // Build payload with atomic fields - Stock always starts at 0!
+            const payload: any = {
+                user_id: userData.user?.id,
+                purchase_price: 0,
+                purchase_quantity: 0 // NEW LOGIC: Stock always starts at 0
+            };
+
+            // Set atomic fields if content qty is provided
+            if (newIngredientPresentationQty && parseFloat(newIngredientPresentationQty) > 0) {
+                payload.base_name = ingredientSearch.trim();
+                payload.unit_code = newIngredientUnit;
+                payload.presentation_qty = parseFloat(newIngredientPresentationQty);
+                payload.name = `${ingredientSearch.trim()} x ${newIngredientPresentationQty} ${newIngredientUnit}`;
+                // Map unit_code to purchase_unit
+                const unitMap: { [key: string]: string } = {
+                    'g': 'Gr', 'kg': 'Kg', 'ml': 'Ml', 'L': 'Lt', 'cm3': 'Ml'
+                };
+                payload.purchase_unit = unitMap[newIngredientUnit] || 'Und';
+            } else {
+                payload.name = ingredientSearch.trim();
+                payload.purchase_unit = newIngredientUnit;
+            }
+
             const { data, error } = await supabase
                 .from('ingredients')
-                .insert({
-                    user_id: userData.user?.id,
-                    name: ingredientSearch.trim(),
-                    purchase_price: 0,
-                    purchase_unit: newIngredientUnit,
-                    purchase_quantity: 0
-                })
+                .insert(payload)
                 .select()
                 .single();
 
@@ -163,6 +182,7 @@ const OutflowModal: React.FC<OutflowModalProps> = ({ isOpen, onClose, onSuccess,
             setSelectedIngredientId(data.id);
             setIngredientSearch('');
             setShowCreateIngredient(false);
+            setNewIngredientPresentationQty('');
         } catch (err: any) {
             console.error('Error creating ingredient:', err);
         } finally {
@@ -289,8 +309,8 @@ const OutflowModal: React.FC<OutflowModalProps> = ({ isOpen, onClose, onSuccess,
                         {/* Animated Background */}
                         <div
                             className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] rounded-xl transition-all duration-300 ease-out shadow-lg ${outflowType === 'COMPRA'
-                                    ? 'left-1.5 bg-blue-600'
-                                    : 'left-[calc(50%+3px)] bg-amber-500'
+                                ? 'left-1.5 bg-blue-600'
+                                : 'left-[calc(50%+3px)] bg-amber-500'
                                 }`}
                         />
 
@@ -439,9 +459,10 @@ const OutflowModal: React.FC<OutflowModalProps> = ({ isOpen, onClose, onSuccess,
                             {showCreateIngredient && (
                                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4 animate-fade-in">
                                     <h4 className="text-xs font-black text-blue-800 dark:text-blue-300 uppercase tracking-wider mb-3">Crear Nuevo Insumo</h4>
-                                    <div className="flex gap-3">
-                                        <div className="flex-1">
-                                            <label className="text-[9px] font-bold text-blue-500 uppercase mb-1 block">Nombre</label>
+                                    <div className="space-y-3">
+                                        {/* Nombre Base */}
+                                        <div>
+                                            <label className="text-[9px] font-bold text-blue-500 uppercase mb-1 block">Nombre Base</label>
                                             <input
                                                 type="text"
                                                 className="w-full bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-500/30 rounded-lg px-3 py-2 text-sm font-bold"
@@ -449,20 +470,43 @@ const OutflowModal: React.FC<OutflowModalProps> = ({ isOpen, onClose, onSuccess,
                                                 readOnly
                                             />
                                         </div>
-                                        <div className="w-28">
-                                            <label className="text-[9px] font-bold text-blue-500 uppercase mb-1 block">Unidad</label>
-                                            <select
-                                                className="w-full bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-500/30 rounded-lg px-3 py-2 text-sm font-bold"
-                                                value={newIngredientUnit}
-                                                onChange={e => setNewIngredientUnit(e.target.value)}
-                                            >
-                                                <option value="Kg">Kg</option>
-                                                <option value="Lt">Lt</option>
-                                                <option value="Und">Und</option>
-                                                <option value="g">g</option>
-                                                <option value="ml">ml</option>
-                                            </select>
+                                        <div className="flex gap-3">
+                                            {/* Unidad de Medida */}
+                                            <div className="w-1/2">
+                                                <label className="text-[9px] font-bold text-blue-500 uppercase mb-1 block">Unidad</label>
+                                                <select
+                                                    className="w-full bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-500/30 rounded-lg px-3 py-2 text-sm font-bold"
+                                                    value={newIngredientUnit}
+                                                    onChange={e => setNewIngredientUnit(e.target.value)}
+                                                >
+                                                    <option value="g">g (gramos)</option>
+                                                    <option value="kg">kg (kilos)</option>
+                                                    <option value="ml">ml (mililitros)</option>
+                                                    <option value="L">L (litros)</option>
+                                                    <option value="cm3">cm³</option>
+                                                </select>
+                                            </div>
+                                            {/* Contenido por Presentación */}
+                                            <div className="w-1/2">
+                                                <label className="text-[9px] font-bold text-blue-500 uppercase mb-1 block">Contenido</label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="Ej: 1000"
+                                                    className="w-full bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-500/30 rounded-lg px-3 py-2 text-sm font-bold"
+                                                    value={newIngredientPresentationQty}
+                                                    onChange={e => setNewIngredientPresentationQty(e.target.value)}
+                                                />
+                                            </div>
                                         </div>
+                                        {/* Generated Name Preview */}
+                                        {ingredientSearch && newIngredientPresentationQty && (
+                                            <div className="bg-blue-100 dark:bg-blue-900/40 rounded-lg p-2">
+                                                <p className="text-[9px] text-blue-500 uppercase font-bold">Nombre Resultante:</p>
+                                                <p className="text-sm font-black text-blue-700 dark:text-blue-300">
+                                                    {ingredientSearch.trim()} x {newIngredientPresentationQty} {newIngredientUnit}
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="flex gap-2 mt-3">
                                         <button
@@ -473,7 +517,7 @@ const OutflowModal: React.FC<OutflowModalProps> = ({ isOpen, onClose, onSuccess,
                                         </button>
                                         <button
                                             onClick={handleCreateIngredient}
-                                            disabled={loading}
+                                            disabled={loading || !newIngredientPresentationQty}
                                             className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-black uppercase hover:bg-blue-700 transition-colors disabled:opacity-50"
                                         >
                                             {loading ? 'Creando...' : 'Crear'}
@@ -557,8 +601,8 @@ const OutflowModal: React.FC<OutflowModalProps> = ({ isOpen, onClose, onSuccess,
                                             key={cat.id}
                                             onClick={() => setSelectedCategoryId(cat.id)}
                                             className={`p-3 rounded-xl border text-center transition-all ${selectedCategoryId === cat.id
-                                                    ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/30'
-                                                    : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:border-amber-400'
+                                                ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/30'
+                                                : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:border-amber-400'
                                                 }`}
                                         >
                                             <span className="text-xl block mb-1">{cat.icon}</span>
@@ -647,8 +691,8 @@ const OutflowModal: React.FC<OutflowModalProps> = ({ isOpen, onClose, onSuccess,
                         onClick={handleSubmit}
                         disabled={loading || (outflowType === 'COMPRA' ? (!selectedIngredientId || !purchaseQuantity) : (!selectedCategoryId || !expenseAmount))}
                         className={`flex-[2] rounded-xl px-6 py-4 font-black uppercase tracking-[0.1em] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg flex items-center justify-center gap-2 text-white ${outflowType === 'COMPRA'
-                                ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30'
-                                : 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/30'
+                            ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30'
+                            : 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/30'
                             }`}
                     >
                         {loading ? (
