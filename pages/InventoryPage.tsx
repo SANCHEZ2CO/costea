@@ -272,7 +272,7 @@ const InventoryList: React.FC<{
 
 const InventoryPage: React.FC = () => {
     const navigate = useNavigate();
-    const { resetProject, user } = useApp();
+    const { user } = useApp();
     const [filterType, setFilterType] = useState<'PRODUCTO' | 'RECETA' | 'INSUMO'>('PRODUCTO');
 
     // viewMode removed: Always Inventory View now, Modal for Purchase
@@ -375,10 +375,7 @@ const InventoryPage: React.FC = () => {
 
     // --- Handlers ---
 
-    const handleNewProject = () => {
-        resetProject();
-        navigate('/costing-engine');
-    };
+
 
     const handleDelete = async () => {
         if (!showDeleteConfirm || !user) return;
@@ -524,11 +521,12 @@ const InventoryPage: React.FC = () => {
 
                     {/* Show Action Buttons */}
                     <div className="flex flex-wrap gap-3">
+
                         {filterType === 'PRODUCTO' && (
-                            <button onClick={handleNewProject} className="group relative overflow-hidden bg-slate-900 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-black text-xs uppercase tracking-[0.15em] transition-all active:scale-95 hover:bg-black">
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                                <span className="material-symbols-outlined text-indigo-400 font-bold">add_circle</span>
-                                Nuevo Costeo
+                            <button onClick={() => setShowNewRecipeModal(true)} className="group relative overflow-hidden bg-indigo-600 text-white px-8 py-4 rounded-2xl shadow-xl flex items-center gap-3 font-black text-xs uppercase tracking-[0.15em] transition-all active:scale-95 hover:bg-indigo-700">
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                                <span className="material-symbols-outlined font-bold">restaurant_menu</span>
+                                Nuevo Menú
                             </button>
                         )}
                         {filterType === 'RECETA' && (
@@ -539,18 +537,11 @@ const InventoryPage: React.FC = () => {
                             </button>
                         )}
                         {filterType === 'INSUMO' && (
-                            <>
-                                <button onClick={() => setShowOutflowModal(true)} className="group relative overflow-hidden bg-emerald-500 text-white px-8 py-4 rounded-2xl shadow-xl flex items-center gap-3 font-black text-xs uppercase tracking-[0.15em] transition-all active:scale-95 hover:bg-emerald-600">
-                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                                    <span className="material-symbols-outlined font-bold">payments</span>
-                                    Registrar Salida
-                                </button>
-                                <button onClick={() => setShowNewIngredientModal(true)} className="group relative overflow-hidden bg-blue-600 text-white px-8 py-4 rounded-2xl shadow-xl flex items-center gap-3 font-black text-xs uppercase tracking-[0.15em] transition-all active:scale-95 hover:bg-blue-700">
-                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                                    <span className="material-symbols-outlined font-bold">inventory_2</span>
-                                    Nuevo Insumo
-                                </button>
-                            </>
+                            <button onClick={() => setShowNewIngredientModal(true)} className="group relative overflow-hidden bg-blue-600 text-white px-8 py-4 rounded-2xl shadow-xl flex items-center gap-3 font-black text-xs uppercase tracking-[0.15em] transition-all active:scale-95 hover:bg-blue-700">
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                                <span className="material-symbols-outlined font-bold">inventory_2</span>
+                                Nuevo Insumo
+                            </button>
                         )}
                     </div>
                 </div>
@@ -559,25 +550,25 @@ const InventoryPage: React.FC = () => {
                 <div className="flex flex-col md:flex-row items-center gap-4 mb-2">
                     <div className="flex p-1.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm w-full md:w-auto overflow-x-auto">
                         <button
-                            onClick={() => setFilterType('INSUMO')}
-                            className={`flex-1 md:flex-none px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 ${filterType === 'INSUMO' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'}`}
+                            onClick={() => setFilterType('PRODUCTO')}
+                            className={`flex-1 md:flex-none px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 ${filterType === 'PRODUCTO' ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'}`}
                         >
-                            <span className="material-symbols-outlined text-[18px]">inventory_2</span>
-                            Insumos (Input)
+                            <span className="material-symbols-outlined text-[18px]">restaurant_menu</span>
+                            Menús
                         </button>
                         <button
                             onClick={() => setFilterType('RECETA')}
                             className={`flex-1 md:flex-none px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 ${filterType === 'RECETA' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'}`}
                         >
                             <span className="material-symbols-outlined text-[18px]">skillet</span>
-                            Recetas (Process)
+                            Recetas
                         </button>
                         <button
-                            onClick={() => setFilterType('PRODUCTO')}
-                            className={`flex-1 md:flex-none px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 ${filterType === 'PRODUCTO' ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'}`}
+                            onClick={() => setFilterType('INSUMO')}
+                            className={`flex-1 md:flex-none px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 ${filterType === 'INSUMO' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'}`}
                         >
-                            <span className="material-symbols-outlined text-[18px]">restaurant_menu</span>
-                            Menús (Output)
+                            <span className="material-symbols-outlined text-[18px]">inventory_2</span>
+                            Insumos
                         </button>
                     </div>
 

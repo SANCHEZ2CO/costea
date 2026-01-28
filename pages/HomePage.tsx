@@ -126,6 +126,20 @@ const HomePage: React.FC = () => {
                                 <p className="text-xs text-slate-400 mt-1">Clientes y Proveedores</p>
                             </div>
                         </button>
+
+                        {/* Movimientos */}
+                        <button
+                            onClick={() => handleAction('/movements')}
+                            className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-white/5 hover:border-indigo-500/50 hover:shadow-lg transition-all group flex flex-col justify-between h-40"
+                        >
+                            <div className="size-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
+                                <span className="material-symbols-outlined">swap_horiz</span>
+                            </div>
+                            <div className="text-left">
+                                <h4 className="font-bold text-slate-800 dark:text-white">Movimientos</h4>
+                                <p className="text-xs text-slate-400 mt-1">Ingresos y Egresos</p>
+                            </div>
+                        </button>
                     </div>
 
                 </div>

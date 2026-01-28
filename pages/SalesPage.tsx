@@ -142,8 +142,7 @@ const SalesPage: React.FC = () => {
         try {
             const { data, error } = await supabase.from('customers').insert({
                 name: newCustName.trim(),
-                phone: newCustPhone.trim() || null,
-                user_id: user?.id
+                phone: newCustPhone.trim() || null
             }).select().single();
 
             if (error) throw error;

@@ -10,6 +10,7 @@ import OutflowPage from './pages/OutflowPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import TercerosPage from './pages/TercerosPage';
+import MovementsPage from './pages/MovementsPage';
 
 import LiquidLoader from './components/LiquidLoader';
 
@@ -117,6 +118,11 @@ const App: React.FC = () => {
                             <Route path="/terceros" element={
                                 <ProtectedRoute>
                                     <TercerosPage />
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/movements" element={
+                                <ProtectedRoute>
+                                    <MovementsPage />
                                 </ProtectedRoute>
                             } />
 
