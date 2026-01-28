@@ -6,8 +6,11 @@ import CostingEnginePage from './pages/CostingEnginePage';
 import ResultsPage from './pages/ResultsPage';
 import InventoryPage from './pages/InventoryPage';
 import SalesPage from './pages/SalesPage';
+import OutflowPage from './pages/OutflowPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
+import TercerosPage from './pages/TercerosPage';
+
 import LiquidLoader from './components/LiquidLoader';
 
 // Wrapper for protected routes
@@ -106,6 +109,17 @@ const App: React.FC = () => {
                                     <SalesPage />
                                 </ProtectedRoute>
                             } />
+                            <Route path="/outflow" element={
+                                <ProtectedRoute>
+                                    <OutflowPage />
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/terceros" element={
+                                <ProtectedRoute>
+                                    <TercerosPage />
+                                </ProtectedRoute>
+                            } />
+
                         </Routes>
                     </div>
                 </ThemeWrapper>

@@ -4,11 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import HeaderSimple from '../components/HeaderSimple';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../constants';
-import { InventoryItem } from '../types';
+import { InventoryItem, OutflowType, PurchaseResult } from '../types';
 import LiquidModal from '../components/LiquidModal';
 import IngredientModal from '../components/Inventory/IngredientModal';
 import RecipeModal from '../components/Inventory/RecipeModal';
 import PurchaseModal from '../components/Inventory/PurchaseModal';
+import OutflowModal from '../components/Inventory/OutflowModal';
 
 // --- Helper Components (Defined before usage to avoid hoisting issues) ---
 
@@ -286,6 +287,12 @@ const InventoryPage: React.FC = () => {
     const [showNewRecipeModal, setShowNewRecipeModal] = useState(false);
     const [showNewIngredientModal, setShowNewIngredientModal] = useState(false);
     const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+    const [showOutflowModal, setShowOutflowModal] = useState(false);
+
+    // Success Animation States
+    const [showPurchaseSuccess, setShowPurchaseSuccess] = useState(false);
+    const [showExpenseSuccess, setShowExpenseSuccess] = useState(false);
+    const [lastPurchaseResult, setLastPurchaseResult] = useState<PurchaseResult | null>(null);
 
     // Editing States
     const [editingIngredient, setEditingIngredient] = useState<any | null>(null);
@@ -441,6 +448,66 @@ const InventoryPage: React.FC = () => {
                 ingredients={ingredients}
             />
 
+            {/* Outflow Modal (Unified Purchase/Expense) */}
+            <OutflowModal
+                isOpen={showOutflowModal}
+                onClose={() => setShowOutflowModal(false)}
+                onSuccess={(type: OutflowType, result?: PurchaseResult) => {
+                    if (type === 'COMPRA') {
+                        fetchIngredients();
+                        if (result) setLastPurchaseResult(result);
+                        setShowPurchaseSuccess(true);
+                        setTimeout(() => setShowPurchaseSuccess(false), 3500);
+                    } else {
+                        setShowExpenseSuccess(true);
+                        setTimeout(() => setShowExpenseSuccess(false), 3500);
+                    }
+                }}
+                ingredients={ingredients}
+            />
+
+            {/* Purchase Success Animation */}
+            {showPurchaseSuccess && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in pointer-events-none">
+                    <div className="bg-white dark:bg-slate-800 p-10 rounded-[32px] shadow-2xl flex flex-col items-center gap-4 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-cyan-500/10" />
+                        <div className="size-24 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-600 flex items-center justify-center mb-2 shadow-lg shadow-blue-500/20">
+                            <span className="text-6xl">📦</span>
+                        </div>
+                        <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">¡Compra Registrada!</h2>
+                        {lastPurchaseResult && (
+                            <div className="bg-blue-50 dark:bg-blue-900/30 px-6 py-3 rounded-xl border border-blue-100 dark:border-blue-500/20">
+                                <p className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                                    Stock: {lastPurchaseResult.old_stock.toFixed(1)} → {lastPurchaseResult.new_stock.toFixed(1)}
+                                </p>
+                            </div>
+                        )}
+                        {/* Confetti dots */}
+                        <div className="absolute top-5 left-1/4 w-2 h-2 bg-blue-500 rounded-full animate-ping" />
+                        <div className="absolute top-10 right-1/4 w-3 h-3 bg-cyan-500 rounded-full animate-ping delay-100" />
+                        <div className="absolute bottom-10 left-10 w-2 h-2 bg-indigo-500 rounded-full animate-ping delay-200" />
+                    </div>
+                </div>
+            )}
+
+            {/* Expense Success Animation */}
+            {showExpenseSuccess && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in pointer-events-none">
+                    <div className="bg-white dark:bg-slate-800 p-10 rounded-[32px] shadow-2xl flex flex-col items-center gap-4 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-orange-500/10" />
+                        <div className="size-24 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-600 flex items-center justify-center mb-2 shadow-lg shadow-amber-500/20">
+                            <span className="text-6xl">💸</span>
+                        </div>
+                        <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">¡Gasto Registrado!</h2>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Registrado en contabilidad</p>
+                        {/* Confetti dots */}
+                        <div className="absolute top-5 left-1/4 w-2 h-2 bg-amber-500 rounded-full animate-ping" />
+                        <div className="absolute top-10 right-1/4 w-3 h-3 bg-orange-500 rounded-full animate-ping delay-100" />
+                        <div className="absolute bottom-10 left-10 w-2 h-2 bg-yellow-500 rounded-full animate-ping delay-200" />
+                    </div>
+                </div>
+            )}
+
 
             <main className="w-full max-w-7xl mx-auto px-4 md:px-8 py-8 flex flex-col gap-8">
 
@@ -473,10 +540,10 @@ const InventoryPage: React.FC = () => {
                         )}
                         {filterType === 'INSUMO' && (
                             <>
-                                <button onClick={() => setShowPurchaseModal(true)} className="group relative overflow-hidden bg-emerald-500 text-white px-8 py-4 rounded-2xl shadow-xl flex items-center gap-3 font-black text-xs uppercase tracking-[0.15em] transition-all active:scale-95 hover:bg-emerald-600">
+                                <button onClick={() => setShowOutflowModal(true)} className="group relative overflow-hidden bg-emerald-500 text-white px-8 py-4 rounded-2xl shadow-xl flex items-center gap-3 font-black text-xs uppercase tracking-[0.15em] transition-all active:scale-95 hover:bg-emerald-600">
                                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                                    <span className="material-symbols-outlined font-bold">shopping_cart_checkout</span>
-                                    Registrar Entrada
+                                    <span className="material-symbols-outlined font-bold">payments</span>
+                                    Registrar Salida
                                 </button>
                                 <button onClick={() => setShowNewIngredientModal(true)} className="group relative overflow-hidden bg-blue-600 text-white px-8 py-4 rounded-2xl shadow-xl flex items-center gap-3 font-black text-xs uppercase tracking-[0.15em] transition-all active:scale-95 hover:bg-blue-700">
                                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
